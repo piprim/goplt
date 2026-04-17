@@ -1,0 +1,26 @@
+[variables]
+name        = ""
+short       = ""
+description = ""
+org-prefix  = "github.com/acme"
+author      = ""
+version     = "0.1.0"
+with-config = true
+with-docker = true
+toolchain   = ["make", "mise"]
+license     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+
+[conditions]
+"configs"         = "{{if .WithConfig}}true{{end}}"
+"internal"        = "{{if .WithConfig}}true{{end}}"
+"Dockerfile.tmpl" = "{{if .WithDocker}}true{{end}}"
+".dockerignore"   = "{{if .WithDocker}}true{{end}}"
+"Makefile.tmpl"   = "{{if eq .Toolchain \"make\"}}true{{end}}"
+"mise.toml.tmpl"  = "{{if eq .Toolchain \"mise\"}}true{{end}}"
+
+[hooks]
+post_generate = [
+  "go mod tidy",
+  "git init",
+  "git add .",
+]
