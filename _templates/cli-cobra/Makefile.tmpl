@@ -1,0 +1,60 @@
+VERSION       := $(shell git describe --abbrev=0 2>/dev/null || echo "{{.Version}}")
+COMMIT        := $(shell git log --pretty=%h -1)
+BUILD_DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+TARGET        := {{.Name}}
+BIN           := ./bin/$(TARGET)
+MODULE        := {{.OrgPrefix}}/{{.Name}}
+REVISION_FLAG := "-X $(MODULE)/cmd/cmd/version.Version=$(VERSION) \
+                  -X $(MODULE)/cmd/cmd/version.Commit=$(COMMIT) \
+                  -X $(MODULE)/cmd/cmd/version.BuildDate=$(BUILD_DATE)"
+GOARCH        := $(shell go env GOARCH)
+
+ifeq ($(OS),Windows_NT)
+    GOOS := windows
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+        GOOS := linux
+    else ifeq ($(UNAME_S),Darwin)
+        GOOS := darwin
+    endif
+endif
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show this help message
+	@awk 'BEGIN {FS=":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
+	/^[a-zA-Z_\/-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+build: ## Build the binary
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
+	go build -o $(BIN) -ldflags $(REVISION_FLAG) ./cmd/
+
+test: ## Run unit tests
+	gotestsum --format pkgname ./...
+
+test/cover: ## Run tests with coverage report
+	gotestsum --format pkgname -- -cover ./...
+
+lint: ## Run golangci-lint
+	golangci-lint run
+
+install: build ## Install binary to GOPATH/bin
+	cp $(BIN) $(shell go env GOPATH)/bin/$(TARGET)
+
+clean: ## Remove build artefacts
+	rm -rf ./bin/
+
+release: ## Release with goreleaser
+	goreleaser release --clean
+{{- if .WithDocker}}
+
+docker/build: ## Build Docker image
+	docker build -t $(TARGET):$(VERSION) .
+
+docker/push: ## Push Docker image
+	docker push $(TARGET):$(VERSION)
+{{- end}}
+
+.PHONY: build test test/cover lint install clean release{{if .WithDocker}} docker/build docker/push{{end}}

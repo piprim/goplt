@@ -1,0 +1,67 @@
+# {{.Name}}
+
+{{.Description}}
+
+---
+
+## Install
+
+```bash
+go install {{.OrgPrefix}}/{{.Name}}@latest
+```
+
+Or build from source:
+
+```bash
+git clone <repo-url>
+cd {{.Name}}
+{{if eq .Toolchain "make"}}make build{{else}}mise run build{{end}}
+```
+
+## Usage
+
+```bash
+{{.Name}} --help
+{{.Name}} hello --name World
+{{.Name}} version
+{{.Name}} completion bash > /etc/bash_completion.d/{{.Name}}
+```
+{{if .WithConfig}}
+## Configuration
+
+Default config: `./configs/config.toml`
+
+| Key | Default | Description |
+|---|---|---|
+| `env` | `development` | Runtime environment (`development` \| `production`) |
+| `log-level` | `info` | Log level (`debug` \| `info` \| `warn` \| `error`) |
+| `hello.greeting` | `Hello` | Greeting string |
+| `hello.default-name` | `World` | Default name for the hello command |
+
+Environment-specific overlay: create `configs/config_<env>.toml` and set `APP_ENV=<env>`.
+Override path at runtime: `{{.Name}} --config /path/to/config.toml`.
+{{end}}
+## Development
+
+{{if eq .Toolchain "make"}}
+| Command | Description |
+|---|---|
+| `make build` | Build binary to `./bin/{{.Name}}` |
+| `make test` | Run tests |
+| `make test/cover` | Run tests with coverage |
+| `make lint` | Run golangci-lint |
+| `make install` | Install to `GOPATH/bin` |
+| `make clean` | Remove `./bin/` |
+{{else}}
+| Command | Description |
+|---|---|
+| `mise run build` | Build binary to `./bin/{{.Name}}` |
+| `mise run test` | Run tests |
+| `mise run test:cover` | Run tests with coverage |
+| `mise run lint` | Run golangci-lint |
+| `mise run install` | Install to `GOPATH/bin` |
+| `mise run clean` | Remove `./bin/` |
+{{end}}
+## License
+
+{{.License}}

@@ -1,0 +1,55 @@
+[tools]
+"go:gotest.tools/gotestsum" = "latest"
+golangci-lint = "latest"
+
+[env]
+MODULE = "{{.OrgPrefix}}/{{.Name}}"
+TARGET = "{{.Name}}"
+BIN    = "./bin/{{.Name}}"
+
+[tasks.build]
+description = "Build the binary"
+run = """
+VERSION=$(git describe --abbrev=0 2>/dev/null || echo "{{.Version}}")
+COMMIT=$(git log --pretty=%h -1)
+BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAG="-X {{"{{"}}env.MODULE{{"}}"}}/cmd/cmd/version.Version=$VERSION \
+        -X {{"{{"}}env.MODULE{{"}}"}}/cmd/cmd/version.Commit=$COMMIT \
+        -X {{"{{"}}env.MODULE{{"}}"}}/cmd/cmd/version.BuildDate=$BUILD_DATE"
+CGO_ENABLED=0 go build -o {{"{{"}}env.BIN{{"}}"}} -ldflags "$LDFLAG" ./cmd/
+"""
+
+[tasks.test]
+description = "Run unit tests"
+run = "gotestsum --format pkgname ./..."
+
+[tasks."test:cover"]
+description = "Run tests with coverage report"
+run = "gotestsum --format pkgname -- -cover ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run"
+
+[tasks.install]
+description = "Install binary to GOPATH/bin"
+depends = ["build"]
+run = "cp {{"{{"}}env.BIN{{"}}"}} $(go env GOPATH)/bin/{{"{{"}}env.TARGET{{"}}"}}"
+
+[tasks.clean]
+description = "Remove build artefacts"
+run = "rm -rf ./bin/"
+
+[tasks.release]
+description = "Release with goreleaser"
+run = "goreleaser release --clean"
+{{- if .WithDocker}}
+
+[tasks."docker:build"]
+description = "Build Docker image"
+run = "docker build -t {{"{{"}}env.TARGET{{"}}"}}:$(git describe --abbrev=0 2>/dev/null || echo \"{{.Version}}\") ."
+
+[tasks."docker:push"]
+description = "Push Docker image"
+run = "docker push {{"{{"}}env.TARGET{{"}}"}}:$(git describe --abbrev=0 2>/dev/null || echo \"{{.Version}}\")"
+{{- end}}

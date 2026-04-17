@@ -1,0 +1,29 @@
+package hello
+
+import (
+	"log/slog"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+func NewCmd() *cobra.Command {
+	var name string
+
+	cmd := &cobra.Command{
+		Use:   "hello",
+		Short: "Say hello (example command)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			greeting := viper.GetString("hello.greeting")
+			n := name
+			if n == "" {
+				n = viper.GetString("hello.default-name")
+			}
+			slog.Info("greeting", "message", greeting+" "+n)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Name to greet (overrides config hello.default-name)")
+	return cmd
+}

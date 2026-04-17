@@ -1,0 +1,10 @@
+# Build output
+bin/
+
+# Environment-specific config overrides (may contain local secrets)
+configs/config_development.*
+
+# Common build artefacts
+*.test
+*.out
+dist/

@@ -1,0 +1,13 @@
+package main
+
+import (
+	"os"
+
+	"{{.OrgPrefix}}/{{.Name}}/cmd/cmd"
+)
+
+func main() {
+	if err := cmd.NewRootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
+}

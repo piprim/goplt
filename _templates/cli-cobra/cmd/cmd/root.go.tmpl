@@ -1,0 +1,68 @@
+package cmd
+
+import (
+	"log/slog"
+	"os"
+
+	"github.com/lmittmann/tint"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"{{.OrgPrefix}}/{{.Name}}/cmd/cmd/completion"
+	"{{.OrgPrefix}}/{{.Name}}/cmd/cmd/hello"
+	"{{.OrgPrefix}}/{{.Name}}/cmd/cmd/version"
+{{- if .WithConfig}}
+	"{{.OrgPrefix}}/{{.Name}}/internal/config"
+{{- end}}
+)
+
+{{- if .WithConfig}}
+var cfgFile string
+{{- end}}
+
+func NewRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "{{.Name}}",
+		Short: "{{.Short}}",
+		Long:  "{{.Description}}",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			cmd.Root().SilenceUsage = true
+			cmd.Root().SilenceErrors = true
+{{- if .WithConfig}}
+			config.Load(cfgFile)
+{{- end}}
+			level := parseLogLevel(viper.GetString("log-level"))
+			var h slog.Handler
+			if viper.GetString("env") == "development" {
+				h = tint.NewHandler(os.Stderr, &tint.Options{Level: level})
+			} else {
+				h = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
+			}
+			slog.SetDefault(slog.New(h))
+		},
+	}
+
+{{- if .WithConfig}}
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: ./configs/config.toml)")
+{{- end}}
+
+	rootCmd.AddCommand(
+		version.NewCmd(),
+		hello.NewCmd(),
+		completion.NewCmd(),
+	)
+
+	return rootCmd
+}
+
+func parseLogLevel(s string) slog.Level {
+	switch s {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}

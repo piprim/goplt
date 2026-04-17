@@ -1,0 +1,6 @@
+env = "development"       # development | production
+log-level = "info"        # debug | info | warn | error
+
+[hello]
+greeting = "Hello"
+default-name = "World"

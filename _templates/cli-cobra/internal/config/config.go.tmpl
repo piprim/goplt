@@ -1,0 +1,32 @@
+package config
+
+import (
+	"github.com/spf13/viper"
+)
+
+func Load(cfgFile string) {
+	// APP_ENV → viper key "env", APP_LOG_LEVEL → "log-level", etc.
+	viper.SetEnvPrefix("APP")
+	viper.AutomaticEnv()
+
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+		_ = viper.ReadInConfig()
+		return
+	}
+
+	viper.SetConfigName("config")
+	viper.SetConfigType("toml")
+	viper.AddConfigPath("$HOME/.{{.Name}}")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("./configs")
+	_ = viper.ReadInConfig()
+
+	// Load environment-specific override (e.g. configs/config_development.toml).
+	// Keys present in the overlay overwrite the base config.
+	// Silently ignored if the file does not exist.
+	if env := viper.GetString("env"); env != "" {
+		viper.SetConfigName("config_" + env)
+		_ = viper.MergeInConfig()
+	}
+}
