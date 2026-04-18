@@ -93,7 +93,7 @@ license       = ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]
 [hooks]
 # Shell commands run sequentially in the output directory after generation.
 # The first non-zero exit aborts the chain.
-post_generate = [
+post-generate = [
   "go mod tidy",
   "go work sync",
 ]
@@ -145,7 +145,7 @@ generated files being present (e.g. `go mod tidy`).
 
 ```toml
 [hooks]
-post_generate = [
+post-generate = [
   "go mod tidy",
   "git init",
   "git add .",
@@ -156,7 +156,7 @@ Commands are split on whitespace — no shell expansion, pipes, or redirections.
 For complex logic, call a script instead:
 
 ```toml
-post_generate = ["./scripts/post-gen.sh"]
+post-generate = ["./scripts/post-gen.sh"]
 ```
 
 ---
@@ -188,7 +188,7 @@ import "github.com/piprim/goplt"
 m, err := goplt.LoadManifest(fsys)
 
 // Render the template tree into outputDir using collected variables
-err = goplt.Generate(fsys, outputDir, vars)
+err = goplt.Generate(fsys, m, outputDir, vars)
 
 // Run post-generation hooks declared in the manifest
 err = goplt.RunHooks(m, outputDir)
@@ -207,7 +207,7 @@ type Manifest struct {
 }
 
 type Hooks struct {
-    PostGenHooks PostGenHooks `mapstructure:"post_generate"`
+    PostGenHooks PostGenHooks `mapstructure:"post-generate"`
 }
 
 type PostGenHooks []string

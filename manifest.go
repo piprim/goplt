@@ -3,6 +3,7 @@ package goplt
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"maps"
 	"slices"
 	"strings"
@@ -24,8 +25,8 @@ const (
 
 // Variable describes a single template variable from template.toml.
 type Variable struct {
-	Name    string       // PascalCase
-	Default any          // string | bool | []string
+	Name    string // PascalCase
+	Default any    // string | bool | []string
 	Kind    VariableKind
 }
 
@@ -34,7 +35,7 @@ type PostGenHooks []string
 
 // Hooks holds the hook commands declared under [hooks] in template.toml.
 type Hooks struct {
-	PostGenHooks PostGenHooks `mapstructure:"post_generate"`
+	PostGenHooks PostGenHooks `mapstructure:"post-generate"`
 }
 
 // Manifest holds the parsed content of a template.toml file.
@@ -55,10 +56,21 @@ func NormalizeKey(s string) string {
 		return r == '-' || r == '_'
 	})
 
+	format := `Key "%s" normalized to "%s"` + "\n"
+
 	if len(parts) <= 1 {
 		r, size := utf8.DecodeRuneInString(s)
+		out := string(unicode.ToUpper(r)) + s[size:]
 
-		return string(unicode.ToUpper(r)) + s[size:]
+		if out != s {
+			log.Printf(format, s, out)
+
+			return out
+		}
+
+		log.Printf(`Key "%s" already normalized`+"\n", s)
+
+		return out
 	}
 
 	var b strings.Builder
@@ -73,7 +85,10 @@ func NormalizeKey(s string) string {
 		_, _ = b.WriteString(p[size:])
 	}
 
-	return b.String()
+	out := b.String()
+	log.Printf(format, s, out)
+
+	return out
 }
 
 // rawManifest is the intermediate representation decoded from template.toml.
@@ -84,7 +99,7 @@ type rawManifest struct {
 }
 
 type rawHooks struct {
-	PostGenerate []string `mapstructure:"post_generate"`
+	PostGenerate []string `mapstructure:"post-generate"`
 }
 
 // LoadManifest reads and parses template.toml from fsys.

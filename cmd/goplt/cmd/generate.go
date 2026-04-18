@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,36 +14,45 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var successC = color.New(color.FgGreen)
+var (
+	successC = color.New(color.FgGreen)
+	warnC    = color.New(color.FgYellow, color.Bold)
+)
 
 func newGenerateCmd() *cobra.Command {
 	var templateDir, outputDir string
+	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate files from a template directory",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runGenerate(templateDir, outputDir)
+			return runGenerate(templateDir, outputDir, yes)
 		},
 	}
 
 	wd, _ := os.Getwd()
-	cmd.Flags().StringVar(&templateDir, "template", wd, "Template directory containing template.toml (default: current directory)")
-	cmd.Flags().StringVar(&outputDir, "output", wd, "Output directory for generated files (default: current directory)")
+	cmd.Flags().StringVarP(
+		&templateDir, "template", "t", wd, "Template directory containing template.toml (default: current directory)")
+	cmd.Flags().StringVarP(
+		&outputDir, "output", "o", wd, "Output directory for generated files (default: current directory)")
+	cmd.Flags().BoolVarP(
+		&yes, "yes", "y", false, "Skip hook confirmation prompt (for CI / trusted templates)")
 
 	return cmd
 }
 
-func runGenerate(templateDir, outputDir string) error {
+func runGenerate(templateDir, outputDir string, yes bool) error {
 	if err := pathGuard(templateDir, outputDir); err != nil {
 		return err
 	}
 
 	fsys := os.DirFS(templateDir)
 
+	log.Println("Loading manifest from " + templateDir)
 	m, err := goplt.LoadManifest(fsys)
 	if err != nil {
-		return fmt.Errorf("load manifest: %w", err)
+		return fmt.Errorf(`load manifest in "%s": %w`, templateDir, err)
 	}
 
 	vars, err := collectVars(m)
@@ -50,15 +60,55 @@ func runGenerate(templateDir, outputDir string) error {
 		return fmt.Errorf("collect vars: %w", err)
 	}
 
-	if err := goplt.Generate(fsys, outputDir, vars); err != nil {
+	log.Println("Generating project to " + outputDir)
+	if err := goplt.Generate(fsys, m, outputDir, vars); err != nil {
 		return fmt.Errorf("generate: %w", err)
+	}
+
+	if err := confirmAndRunHooks(m, outputDir, yes); err != nil {
+		return err
+	}
+
+	_, _ = successC.Println("✓ Generation completed in " + outputDir)
+
+	return nil
+}
+
+// confirmAndRunHooks shows a security warning and asks for explicit consent before
+// running post-generate hooks. If --yes is set the prompt is skipped entirely.
+// When no hooks are defined the function is a no-op.
+func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
+	if len(m.Hooks.PostGenHooks) == 0 {
+		return nil
+	}
+
+	if !yes {
+		msg := "This template defines post-generate hooks that will run shell commands on your machine."
+		_, _ = warnC.Println("\n⚠  WARNING ⚠\n" + msg)
+		fmt.Println("   Only proceed if you trust the template source.")
+		fmt.Println()
+		fmt.Println("   Commands that will be executed:")
+		for _, h := range m.Hooks.PostGenHooks {
+			fmt.Printf("     • %s\n", h)
+		}
+		fmt.Println()
+		fmt.Println("   Tip: to skip this prompt in CI or for trusted templates, re-run with:")
+		fmt.Println("     goplt generate --yes ...")
+		fmt.Println()
+
+		var confirmed bool
+		if err := huh.NewConfirm().
+			Title("Run these hooks?").
+			Value(&confirmed).
+			Run(); err != nil || !confirmed {
+			log.Println("Hooks skipped.")
+			return nil
+		}
 	}
 
 	if err := goplt.RunHooks(m, outputDir); err != nil {
 		return fmt.Errorf("post-generate hooks: %w", err)
 	}
-
-	_, _ = successC.Println("✓ Generation complete")
 
 	return nil
 }
@@ -72,6 +122,7 @@ type binding struct {
 // collectVars builds and runs a huh form from the manifest variables,
 // returning a PascalCase-keyed map of collected values.
 func collectVars(m *goplt.Manifest) (map[string]any, error) {
+	log.Println("Collecting manifest variables")
 	vars := make(map[string]any, len(m.Variables))
 
 	for _, v := range m.Variables {
@@ -187,7 +238,7 @@ func pathGuard(templateDir, outputDir string) error {
 func canonicalPath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(`failed to retrieve absolute representation of path "%s": %w`, p, err)
 	}
 
 	resolved, err := filepath.EvalSymlinks(abs)

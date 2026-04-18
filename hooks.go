@@ -1,6 +1,7 @@
 package goplt
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -26,7 +27,8 @@ func runHook(cmdStr, dir string) error {
 		return nil
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	//nolint:gosec // The user is already warns about potential security breach.
+	cmd := exec.CommandContext(context.Background(), parts[0], parts[1:]...)
 	cmd.Dir = dir
 
 	out, err := cmd.CombinedOutput()

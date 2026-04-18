@@ -33,8 +33,11 @@ func TestGenerate_rendersFile(t *testing.T) {
 		"hello.txt": "Hello, {{.Name}}!",
 	})
 
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
 	out := t.TempDir()
-	err := goplt.Generate(fsys, out, map[string]any{"Name": "world"})
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "world"})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
@@ -47,8 +50,11 @@ func TestGenerate_rendersPathWithVar(t *testing.T) {
 		"modules/{{.Name}}/main.go": "package main",
 	})
 
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
 	out := t.TempDir()
-	err := goplt.Generate(fsys, out, map[string]any{"Name": "payment"})
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "payment"})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(out, "modules/payment/main.go"))
@@ -60,8 +66,11 @@ func TestGenerate_stripsTmplExtension(t *testing.T) {
 		"go.mod.tmpl": "module example.com/{{.Name}}",
 	})
 
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
 	out := t.TempDir()
-	err := goplt.Generate(fsys, out, map[string]any{"Name": "myapp"})
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "myapp"})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(out, "go.mod"))
@@ -76,8 +85,11 @@ func TestGenerate_skipsTemplateToml(t *testing.T) {
 		"hello.txt": "hi",
 	})
 
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
 	out := t.TempDir()
-	err := goplt.Generate(fsys, out, map[string]any{"Name": "x"})
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "x"})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(out, "template.toml"))
@@ -98,8 +110,11 @@ with-connect = false
 		"main.go":                     &fstest.MapFile{Data: []byte("package main")},
 	}
 
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
 	out := t.TempDir()
-	err := goplt.Generate(fsys, out, map[string]any{"Name": "x", "WithConnect": false})
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "x", "WithConnect": false})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(out, "adapters/connect/handler.go"))
