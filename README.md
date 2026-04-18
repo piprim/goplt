@@ -159,18 +159,49 @@ For complex logic, call a script instead:
 post-generate = ["./scripts/post-gen.sh"]
 ```
 
+#### Security — hook confirmation
+
+> **Warning:** hooks execute arbitrary shell commands on your machine.
+> Only use templates from sources you trust.
+
+When a template declares hooks, `goplt` prints each command and asks for
+explicit confirmation before running anything:
+
+```
+⚠  WARNING: this template defines post-generate hooks that will run shell commands on your machine.
+   Only proceed if you trust the template source.
+
+   Commands that will be executed:
+     • go mod tidy
+     • git init
+     • git add .
+
+   Tip: to skip this prompt in CI or for trusted templates, re-run with:
+     goplt generate --yes ...
+
+? Run these hooks? [y/N]
+```
+
+Pass `--yes` (or `-y`) to bypass the prompt — useful in CI pipelines or when
+working with your own trusted templates:
+
+```bash
+goplt generate --template ./my-template --yes
+```
+
 ---
 
 ## CLI reference
 
 ```
-goplt generate [--template <dir>] [--output <dir>]
+goplt generate [--template <dir>] [--output <dir>] [--yes]
 ```
 
-| Flag | Default | Description |
-|---|---|---|
-| `--template` | current directory | Directory containing `template.toml` |
-| `--output` | current directory | Directory where files are written |
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--template` | `-t` | current directory | Directory containing `template.toml` |
+| `--output` | `-o` | current directory | Directory where files are written |
+| `--yes` | `-y` | `false` | Skip the hook confirmation prompt |
 
 **Safety:** the output directory cannot be the same as, or nested inside, the
 template directory (and vice versa). `goplt` checks this before doing anything.
