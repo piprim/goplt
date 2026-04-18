@@ -38,6 +38,38 @@ goplt generate --template ./my-template --output ./projects/myapp
 
 ---
 
+## Remote templates
+
+`goplt` accepts a Go module reference as `--template`, using the same syntax as
+`go get`. The module is fetched via the Go module proxy and cached locally in
+`$GOMODCACHE` — subsequent runs are instant.
+
+```bash
+# Latest version
+goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra
+
+# Pinned version
+goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra@v1.0.0
+
+# Branch or commit
+goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra@main
+```
+
+The template module must contain a `template.toml` at its root.
+Private modules are supported via the standard Go environment variables
+(`GOPRIVATE`, `GONOSUMDB`, `GOFLAGS`, `GOAUTH`).
+
+### Official template collection
+
+[github.com/piprim/goplt-tmpl](https://github.com/piprim/goplt-tmpl) —
+community templates maintained alongside `goplt`:
+
+| Reference | Description |
+|---|---|
+| `github.com/piprim/goplt-tmpl/cli-cobra` | Go CLI with Cobra + Viper, structured logging, Makefile or mise |
+
+---
+
 ## Template directory layout
 
 A template directory contains a `template.toml` manifest and any number of
@@ -71,6 +103,9 @@ The `.tmpl` extension is stripped from the output file name:
 ## template.toml reference
 
 ```toml
+# Optional: create a named subdirectory in the output dir (ignored when --output is set).
+target-dir = "{{.Name}}"
+
 [variables]
 # Text input — empty default means the field is required
 name          = ""
@@ -118,6 +153,22 @@ You can write them in any style in `template.toml`:
 | `with_connect` | `{{.WithConnect}}` |
 | `withConnect` | `{{.WithConnect}}` |
 | `org-prefix` | `{{.OrgPrefix}}` |
+
+### target-dir
+
+The optional `target-dir` field is a Go template expression evaluated against
+the collected variable values. When present, `goplt` appends the rendered value
+as a subdirectory of the output path — so files land in `<output>/<target-dir>`
+instead of `<output>` directly.
+
+```toml
+target-dir = "{{.Name}}"
+```
+
+`target-dir` is **ignored** when `--output` is set explicitly on the command
+line, giving the caller full control over the destination.
+
+---
 
 ### Conditions
 
@@ -194,13 +245,13 @@ goplt generate --template ./my-template --yes
 ## CLI reference
 
 ```
-goplt generate [--template <dir>] [--output <dir>] [--yes]
+goplt generate [--template <path|module>] [--output <dir>] [--yes]
 ```
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--template` | `-t` | current directory | Directory containing `template.toml` |
-| `--output` | `-o` | current directory | Directory where files are written |
+| `--template` | `-t` | current directory | Local path or Go module reference (`host/owner/repo[/subpath][@version]`) containing `template.toml` |
+| `--output` | `-o` | current directory | Directory where files are written; when set, overrides `target-dir` declared in `template.toml` |
 | `--yes` | `-y` | `false` | Skip the hook confirmation prompt |
 
 **Safety:** the output directory cannot be the same as, or nested inside, the
@@ -255,4 +306,3 @@ type Variable struct {
 ## Roadmap
 
 - `goplt init` — interactively scaffold a new `template.toml`
-- `--template <url>` — fetch a template from a remote Git repository

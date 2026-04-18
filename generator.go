@@ -38,7 +38,7 @@ func (g *generator) walk(path string, d fs.DirEntry, walkErr error) error {
 		return walkErr
 	}
 
-	if path == "." || path == "template.toml" {
+	if path == "." || path == "template.toml" || path == "go.mod" || path == "go.sum" {
 		return nil
 	}
 

@@ -96,6 +96,46 @@ func TestGenerate_skipsTemplateToml(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "template.toml must not be copied to output")
 }
 
+func TestGenerate_skipsGoMod(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"go.mod":  "module example.com/should-not-appear",
+		"main.go": "package main",
+	})
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "x"})
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(out, "go.mod"))
+	assert.True(t, os.IsNotExist(err), "go.mod must not be copied to output")
+
+	_, err = os.Stat(filepath.Join(out, "main.go"))
+	assert.NoError(t, err, "main.go must be written")
+}
+
+func TestGenerate_skipsGoSum(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"go.sum":  "github.com/example/mod v1.0.0 h1:abc=\n",
+		"main.go": "package main",
+	})
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "x"})
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(out, "go.sum"))
+	assert.True(t, os.IsNotExist(err), "go.sum must not be copied to output")
+
+	_, err = os.Stat(filepath.Join(out, "main.go"))
+	assert.NoError(t, err, "main.go must be written")
+}
+
 func TestGenerate_conditionSkipsDir(t *testing.T) {
 	fsys := fstest.MapFS{
 		"template.toml": &fstest.MapFile{Data: []byte(`

@@ -43,6 +43,7 @@ type Manifest struct {
 	Variables  []Variable
 	Conditions map[string]string // unrendered path prefix → Go template boolean expression
 	Hooks      Hooks
+	TargetDir  string // optional Go template expression; rendered against vars to determine output subdirectory
 }
 
 // NormalizeKey converts hyphen-case, snake_case, or camelCase to PascalCase.
@@ -96,6 +97,7 @@ type rawManifest struct {
 	Variables  map[string]any    `mapstructure:"variables"`
 	Conditions map[string]string `mapstructure:"conditions"`
 	Hooks      rawHooks          `mapstructure:"hooks"`
+	TargetDir  string            `mapstructure:"target-dir"`
 }
 
 type rawHooks struct {
@@ -135,6 +137,7 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 		Hooks: Hooks{
 			PostGenHooks: PostGenHooks(raw.Hooks.PostGenerate),
 		},
+		TargetDir: raw.TargetDir,
 	}
 
 	maps.Copy(m.Conditions, raw.Conditions)

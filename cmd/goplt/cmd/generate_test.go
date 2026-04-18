@@ -48,3 +48,47 @@ func TestPathGuard_outputNotExistYet(t *testing.T) {
 	err := pathGuard(tmplDir, output)
 	assert.NoError(t, err)
 }
+
+func TestApplyTargetDir_appended(t *testing.T) {
+	manifest := &struct{ TargetDir string }{TargetDir: "{{.Name}}"}
+	vars := map[string]any{"Name": "myapp"}
+	base := "/tmp/out"
+
+	result, err := applyTargetDir(manifest.TargetDir, base, vars, false)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/out/myapp", result)
+}
+
+func TestApplyTargetDir_skippedWhenExplicit(t *testing.T) {
+	vars := map[string]any{"Name": "myapp"}
+
+	result, err := applyTargetDir("{{.Name}}", "/tmp/out", vars, true)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/out", result)
+}
+
+func TestApplyTargetDir_skippedWhenEmpty(t *testing.T) {
+	vars := map[string]any{"Name": "myapp"}
+
+	result, err := applyTargetDir("", "/tmp/out", vars, false)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/out", result)
+}
+
+func TestApplyTargetDir_templateRendered(t *testing.T) {
+	vars := map[string]any{"Name": "payment", "OrgPrefix": "github.com/acme"}
+
+	result, err := applyTargetDir("{{.Name}}-svc", "/tmp/out", vars, false)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/out/payment-svc", result)
+}
+
+func TestRunGenerate_remoteRefReturnsWrappedError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
+
+	err := runGenerate("example.com/definitely/doesnotexist@v0.0.1", t.TempDir(), false, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolve remote template")
+}

@@ -30,7 +30,7 @@ func defaultCobraVars() map[string]any {
 // generateCobra runs goplt.Generate with the cli-cobra template into a temp dir.
 func generateCobra(t *testing.T, vars map[string]any) string {
 	t.Helper()
-	fsys := os.DirFS("_templates/cli-cobra")
+	fsys := os.DirFS("_test/cli-cobra")
 	m, err := goplt.LoadManifest(fsys)
 	require.NoError(t, err)
 	out := t.TempDir()

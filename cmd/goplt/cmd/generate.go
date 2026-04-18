@@ -2,11 +2,13 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
@@ -26,8 +28,8 @@ func newGenerateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate files from a template directory",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runGenerate(templateDir, outputDir, yes)
+		RunE: func(c *cobra.Command, _ []string) error {
+			return runGenerate(templateDir, outputDir, yes, c.Flags().Changed("output"))
 		},
 	}
 
@@ -42,17 +44,27 @@ func newGenerateCmd() *cobra.Command {
 	return cmd
 }
 
-func runGenerate(templateDir, outputDir string, yes bool) error {
-	if err := pathGuard(templateDir, outputDir); err != nil {
+func runGenerate(templateDir, outputDir string, yes, outputExplicit bool) error {
+	realTemplateDir := templateDir
+
+	if isRemoteRef(templateDir) {
+		resolved, err := resolveRemote(templateDir)
+		if err != nil {
+			return fmt.Errorf("resolve remote template %q: %w", templateDir, err)
+		}
+		realTemplateDir = resolved
+	}
+
+	if err := pathGuard(realTemplateDir, outputDir); err != nil {
 		return err
 	}
 
-	fsys := os.DirFS(templateDir)
+	fsys := os.DirFS(realTemplateDir)
 
-	log.Println("Loading manifest from " + templateDir)
+	log.Println("Loading manifest from " + realTemplateDir)
 	m, err := goplt.LoadManifest(fsys)
 	if err != nil {
-		return fmt.Errorf(`load manifest in "%s": %w`, templateDir, err)
+		return fmt.Errorf(`load manifest in "%s": %w`, realTemplateDir, err)
 	}
 
 	vars, err := collectVars(m)
@@ -60,18 +72,49 @@ func runGenerate(templateDir, outputDir string, yes bool) error {
 		return fmt.Errorf("collect vars: %w", err)
 	}
 
-	log.Println("Generating project to " + outputDir)
-	if err := goplt.Generate(fsys, m, outputDir, vars); err != nil {
+	realOutputDir, err := applyTargetDir(m.TargetDir, outputDir, vars, outputExplicit)
+	if err != nil {
+		return fmt.Errorf("apply target-dir: %w", err)
+	}
+
+	log.Println("Generating project to " + realOutputDir)
+	if err := goplt.Generate(fsys, m, realOutputDir, vars); err != nil {
 		return fmt.Errorf("generate: %w", err)
 	}
 
-	if err := confirmAndRunHooks(m, outputDir, yes); err != nil {
+	if err := confirmAndRunHooks(m, realOutputDir, yes); err != nil {
 		return err
 	}
 
-	_, _ = successC.Println("✓ Generation completed in " + outputDir)
+	_, _ = successC.Println("✓ Generation completed in " + realOutputDir)
 
 	return nil
+}
+
+// applyTargetDir renders targetDirTmpl against vars and appends the result to
+// outputDir. It is a no-op when outputExplicit is true (--output was set by the
+// caller) or when targetDirTmpl is empty.
+func applyTargetDir(targetDirTmpl, outputDir string, vars map[string]any, outputExplicit bool) (string, error) {
+	if outputExplicit || targetDirTmpl == "" {
+		return outputDir, nil
+	}
+
+	t, err := template.New("target-dir").Parse(targetDirTmpl)
+	if err != nil {
+		return "", fmt.Errorf("parse target-dir template %q: %w", targetDirTmpl, err)
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, vars); err != nil {
+		return "", fmt.Errorf("execute target-dir template %q: %w", targetDirTmpl, err)
+	}
+
+	rendered := buf.String()
+	if rendered == "" {
+		return outputDir, nil
+	}
+
+	return filepath.Join(outputDir, rendered), nil
 }
 
 // confirmAndRunHooks shows a security warning and asks for explicit consent before
