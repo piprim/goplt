@@ -1,16 +1,44 @@
 target-dir = "{{.Name}}"
 
-[variables]
-name        = ""
-short       = ""
-description = ""
-org-prefix  = "github.com/acme"
-author      = ""
-version     = "0.1.0"
-with-config = true
-with-docker = true
-toolchain   = ["make", "mise"]
-license     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+[variables.name]
+default     = ""
+description = "Go module name, e.g. my-service"
+
+[variables.short]
+default     = ""
+description = "One-line description shown in --help output"
+
+[variables.description]
+default     = ""
+description = "Longer project description"
+
+[variables.org-prefix]
+default     = "github.com/acme"
+description = "Module path prefix, e.g. github.com/yourorg"
+
+[variables.author]
+default     = ""
+description = "Author name for LICENSE file"
+
+[variables.version]
+default     = "0.1.0"
+description = "Initial version tag"
+
+[variables.with-config]
+default     = true
+description = "Generate a config package with Viper"
+
+[variables.with-docker]
+default     = true
+description = "Generate a Dockerfile and .dockerignore"
+
+[variables.toolchain]
+default     = ["make", "mise"]
+description = "Build toolchain to scaffold (pick one)"
+
+[variables.license]
+default     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+description = "License to apply to the project"
 
 [conditions]
 "configs"         = "{{if .WithConfig}}true{{end}}"

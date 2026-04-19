@@ -75,6 +75,10 @@ func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
 				return nil
 			})
 
+		if v.Description != "" {
+			field = field.Description(v.Description)
+		}
+
 		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 
 	case goplt.KindBool:
@@ -85,6 +89,10 @@ func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
 
 		ptr := &val
 		field := huh.NewConfirm().Title(name).Value(ptr)
+
+		if v.Description != "" {
+			field = field.Description(v.Description)
+		}
 
 		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 
@@ -103,6 +111,10 @@ func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
 
 		ptr := &val
 		field := huh.NewSelect[string]().Title(name).Options(opts...).Value(ptr)
+
+		if v.Description != "" {
+			field = field.Description(v.Description)
+		}
 
 		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 
