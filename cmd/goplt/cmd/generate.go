@@ -4,7 +4,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +60,7 @@ func runGenerate(templateDir, outputDir string, yes, outputExplicit bool) error 
 
 	fsys := os.DirFS(realTemplateDir)
 
-	log.Println("Loading manifest from " + realTemplateDir)
+	debugf("loading manifest from %s", realTemplateDir)
 	m, err := goplt.LoadManifest(fsys)
 	if err != nil {
 		return fmt.Errorf(`load manifest in "%s": %w`, realTemplateDir, err)
@@ -77,7 +76,7 @@ func runGenerate(templateDir, outputDir string, yes, outputExplicit bool) error 
 		return fmt.Errorf("apply target-dir: %w", err)
 	}
 
-	log.Println("Generating project to " + realOutputDir)
+	debugf("generating project to %s", realOutputDir)
 	if err := goplt.Generate(fsys, m, realOutputDir, vars); err != nil {
 		return fmt.Errorf("generate: %w", err)
 	}
@@ -114,7 +113,12 @@ func applyTargetDir(targetDirTmpl, outputDir string, vars map[string]any, output
 		return outputDir, nil
 	}
 
-	return filepath.Join(outputDir, rendered), nil
+	joined := filepath.Join(outputDir, rendered)
+	if !strings.HasPrefix(joined+string(os.PathSeparator), outputDir+string(os.PathSeparator)) {
+		return "", fmt.Errorf("target-dir %q escapes the output directory", rendered)
+	}
+
+	return joined, nil
 }
 
 // confirmAndRunHooks shows a security warning and asks for explicit consent before
@@ -144,7 +148,7 @@ func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
 			Title("Run these hooks?").
 			Value(&confirmed).
 			Run(); err != nil || !confirmed {
-			log.Println("Hooks skipped.")
+			debugf("hooks skipped")
 			return nil
 		}
 	}
@@ -165,7 +169,7 @@ type binding struct {
 // collectVars builds and runs a huh form from the manifest variables,
 // returning a PascalCase-keyed map of collected values.
 func collectVars(m *goplt.Manifest) (map[string]any, error) {
-	log.Println("Collecting manifest variables")
+	debugf("collecting manifest variables")
 	vars := make(map[string]any, len(m.Variables))
 
 	for _, v := range m.Variables {

@@ -75,6 +75,13 @@ func TestApplyTargetDir_skippedWhenEmpty(t *testing.T) {
 	assert.Equal(t, "/tmp/out", result)
 }
 
+func TestApplyTargetDir_traversalRejected(t *testing.T) {
+	vars := map[string]any{}
+
+	_, err := applyTargetDir("../../etc", "/tmp/out", vars, false)
+	assert.ErrorContains(t, err, "escapes the output directory")
+}
+
 func TestApplyTargetDir_templateRendered(t *testing.T) {
 	vars := map[string]any{"Name": "payment", "OrgPrefix": "github.com/acme"}
 

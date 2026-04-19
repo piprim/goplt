@@ -49,6 +49,7 @@ func resolveRemote(ref string) (string, error) {
 	defer cancel()
 
 	var stderr bytes.Buffer
+	debugf("fetching module %s", arg)
 	cmd := exec.CommandContext(ctx, "go", "mod", "download", "-json", arg)
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

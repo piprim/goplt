@@ -33,9 +33,14 @@ build: ## Build the binary into ./bin/
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 	go build $(LDFLAGS) -o $(BIN) ./cmd/goplt
 
+GOBIN_DIR := $(shell go env GOBIN)
+ifeq ($(GOBIN_DIR),)
+    GOBIN_DIR := $(shell go env GOPATH)/bin
+endif
+
 .PHONY: install
-install: build ## Install binary to GOPATH/bin
-	cp $(BIN) $(shell go env GOPATH)/bin/$(TARGET)
+install: build ## Install binary to GOBIN (or GOPATH/bin)
+	cp $(BIN) $(GOBIN_DIR)/$(TARGET)
 
 .PHONY: test
 test: ## Run tests (skip network tests)

@@ -3,7 +3,6 @@ package goplt
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"maps"
 	"slices"
 	"strings"
@@ -57,21 +56,9 @@ func NormalizeKey(s string) string {
 		return r == '-' || r == '_'
 	})
 
-	format := `Key "%s" normalized to "%s"` + "\n"
-
 	if len(parts) <= 1 {
 		r, size := utf8.DecodeRuneInString(s)
-		out := string(unicode.ToUpper(r)) + s[size:]
-
-		if out != s {
-			log.Printf(format, s, out)
-
-			return out
-		}
-
-		log.Printf(`Key "%s" already normalized`+"\n", s)
-
-		return out
+		return string(unicode.ToUpper(r)) + s[size:]
 	}
 
 	var b strings.Builder
@@ -86,10 +73,7 @@ func NormalizeKey(s string) string {
 		_, _ = b.WriteString(p[size:])
 	}
 
-	out := b.String()
-	log.Printf(format, s, out)
-
-	return out
+	return b.String()
 }
 
 // rawManifest is the intermediate representation decoded from template.toml.
