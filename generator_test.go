@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"text/template"
 
 	"github.com/piprim/goplt"
 	"github.com/stretchr/testify/assert"
@@ -162,4 +163,63 @@ with-connect = false
 
 	_, err = os.Stat(filepath.Join(out, "main.go"))
 	assert.NoError(t, err, "unconditional file must be written")
+}
+
+func TestGenerate_builtinFuncsAvailable(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"hello.txt": `{{.Name | snake}}`,
+	})
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	err = goplt.Generate(fsys, m, out, map[string]any{"Name": "MyApp"})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "my_app", string(content))
+}
+
+func TestGenerator_withFuncs_addsCustomFunc(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"hello.txt": `{{.Name | shout}}`,
+	})
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	err = goplt.NewGenerator().
+		WithFuncs(template.FuncMap{
+			"shout": func(s string) string { return s + "!" },
+		}).
+		Generate(fsys, m, out, map[string]any{"Name": "hello"})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello!", string(content))
+}
+
+func TestGenerator_withFuncs_overridesBuiltin(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"hello.txt": `{{.Name | upper}}`,
+	})
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	err = goplt.NewGenerator().
+		WithFuncs(template.FuncMap{
+			"upper": func(s string) string { return "OVERRIDDEN" },
+		}).
+		Generate(fsys, m, out, map[string]any{"Name": "hello"})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "OVERRIDDEN", string(content))
 }
