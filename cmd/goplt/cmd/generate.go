@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -9,9 +10,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
 	"github.com/piprim/goplt"
+	"github.com/piprim/goplt/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +67,7 @@ func runGenerate(templateDir, outputDir string, yes, outputExplicit bool) error 
 		return fmt.Errorf(`load manifest in "%s": %w`, realTemplateDir, err)
 	}
 
-	vars, err := collectVars(m)
+	vars, err := tui.CollectVars(m)
 	if err != nil {
 		return fmt.Errorf("collect vars: %w", err)
 	}
@@ -143,14 +144,20 @@ func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
 		fmt.Println("     goplt generate --yes ...")
 		fmt.Println()
 
-		var confirmed bool
-		if err := huh.NewConfirm().
-			Title("Run these hooks?").
-			Value(&confirmed).
-			Run(); err != nil || !confirmed {
+		fmt.Print("Run these hooks? [y/N]: ")
+		scanner := bufio.NewScanner(os.Stdin)
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return fmt.Errorf("reading hook confirmation: %w", err)
+			}
 			debugf("hooks skipped")
 			return nil
 		}
+		if !strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
+			debugf("hooks skipped")
+			return nil
+		}
+		fmt.Println()
 	}
 
 	if err := goplt.RunHooks(m, outputDir); err != nil {
@@ -158,104 +165,6 @@ func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
 	}
 
 	return nil
-}
-
-// binding pairs a variable name with a function that writes the collected value into vars.
-type binding struct {
-	name  string
-	apply func()
-}
-
-// collectVars builds and runs a huh form from the manifest variables,
-// returning a PascalCase-keyed map of collected values.
-func collectVars(m *goplt.Manifest) (map[string]any, error) {
-	debugf("collecting manifest variables")
-	vars := make(map[string]any, len(m.Variables))
-
-	for _, v := range m.Variables {
-		vars[v.Name] = v.Default
-	}
-
-	var bindings []binding
-
-	var fields []huh.Field
-
-	for i := range m.Variables {
-		f, b := buildField(m.Variables[i], vars)
-		if f != nil {
-			fields = append(fields, f)
-			bindings = append(bindings, b)
-		}
-	}
-
-	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
-		return nil, fmt.Errorf("form cancelled: %w", err)
-	}
-
-	for _, b := range bindings {
-		b.apply()
-	}
-
-	return vars, nil
-}
-
-// buildField constructs a huh.Field and its binding for a single manifest variable.
-func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
-	name := v.Name
-
-	switch v.Kind {
-	case goplt.KindText:
-		val := ""
-		if s, ok := v.Default.(string); ok {
-			val = s
-		}
-
-		ptr := &val
-		field := huh.NewInput().
-			Title(name).
-			Value(ptr).
-			Validate(func(s string) error {
-				if def, _ := v.Default.(string); def == "" && s == "" {
-					return fmt.Errorf("%s is required", name)
-				}
-
-				return nil
-			})
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
-	case goplt.KindBool:
-		val := false
-		if b, ok := v.Default.(bool); ok {
-			val = b
-		}
-
-		ptr := &val
-		field := huh.NewConfirm().Title(name).Value(ptr)
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
-	case goplt.KindChoiceString:
-		choices, _ := v.Default.([]string)
-		opts := make([]huh.Option[string], len(choices))
-
-		for j, c := range choices {
-			opts[j] = huh.NewOption(c, c)
-		}
-
-		val := ""
-		if len(choices) > 0 {
-			val = choices[0]
-		}
-
-		ptr := &val
-		field := huh.NewSelect[string]().Title(name).Options(opts...).Value(ptr)
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
-	default:
-		return nil, binding{}
-	}
 }
 
 // pathGuard returns an error if templateDir and outputDir are the same or nested.
