@@ -24,9 +24,10 @@ const (
 
 // Variable describes a single template variable from template.toml.
 type Variable struct {
-	Name    string // PascalCase
-	Default any    // string | bool | []string
-	Kind    VariableKind
+	Name        string // PascalCase
+	Default     any    // string | bool | []string
+	Kind        VariableKind
+	Description string // optional; shown as subtitle in the TUI
 }
 
 // PostGenHooks is a list of post-generation shell commands.
@@ -168,6 +169,23 @@ func parseVariable(rawName string, val any) (Variable, error) {
 
 		v.Kind = KindChoiceString
 		v.Default = choices
+
+	case map[string]any:
+		defaultVal, ok := tv["default"]
+		if !ok {
+			return Variable{}, fmt.Errorf("variable %q: sub-table form requires a \"default\" key", rawName)
+		}
+
+		inner, err := parseVariable(rawName, defaultVal)
+		if err != nil {
+			return Variable{}, err
+		}
+
+		v = inner
+
+		if desc, ok := tv["description"].(string); ok {
+			v.Description = desc
+		}
 
 	default:
 		return Variable{}, fmt.Errorf("variable %q: unsupported type %T (use string, bool, or []string)", rawName, val)
