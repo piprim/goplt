@@ -31,9 +31,12 @@ goplt generate --template ./my-template
 
 # Generate into a specific output directory
 goplt generate --template ./my-template --output ./projects/myapp
+
+# Test a template — generates with defaults, runs go build + go test in Docker
+goplt test --template ./my-template
 ```
 
-`goplt` will open an interactive form, collect all variable values declared in
+`goplt generate` will open an interactive form, collect all variable values declared in
 `template.toml`, render the template tree, and run any post-generation hooks.
 
 ---
@@ -107,17 +110,28 @@ The `.tmpl` extension is stripped from the output file name:
 target-dir = "{{.Name}}"
 
 [variables]
-# Text input — empty default means the field is required
-name          = ""
+# Flat syntax — value determines the kind
+name          = ""                                          # text, required
+org-prefix    = "github.com/acme"                          # text with default
+with-connect  = true                                       # bool confirm
+license       = ["MIT", "Apache-2.0", "BSD-3-Clause"]     # select
 
-# Text input with a default value
-org-prefix    = "github.com/acme"
+# Sub-table syntax — adds an optional description shown in the TUI
+[variables.name]
+default     = ""
+description = "Go module name, e.g. my-service"
 
-# Boolean confirm (yes/no)
-with-connect  = true
+[variables.org-prefix]
+default     = "github.com/acme"
+description = "Module path prefix, e.g. github.com/yourorg"
 
-# Select from a list — first item is the default
-license       = ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]
+[variables.with-connect]
+default     = true
+description = "Generate a Connect-RPC server"
+
+[variables.license]
+default     = ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]
+description = "License to apply to the project"
 
 [conditions]
 # Skip a path prefix when the expression evaluates to an empty string.
@@ -141,6 +155,10 @@ post-generate = [
 | `""` or `"default"` | text | text input | Empty default = required field |
 | `true` / `false` | bool | yes/no confirm | |
 | `["A", "B", "C"]` | select | dropdown | First item = default |
+
+Both syntaxes are equivalent — the sub-table form simply adds an optional
+`description` that appears as a subtitle in the interactive TUI form.
+Flat and sub-table variables can be freely mixed in the same `template.toml`.
 
 ### Variable name normalisation
 
@@ -242,7 +260,51 @@ goplt generate --template ./my-template --yes
 
 ---
 
+## Testing templates
+
+`goplt test` validates a template end-to-end without manual input. It generates
+the template using default variable values, then runs `go build ./...` and
+`go test ./...` inside a Docker container — giving template authors a
+CI-friendly smoke test.
+
+```bash
+# Test the template in the current directory
+goplt test
+
+# Test a specific template directory
+goplt test --template ./my-template
+
+# Test a remote template
+goplt test --template github.com/piprim/goplt-tmpl/cli-cobra
+
+# Use a specific Go image
+goplt test --template ./my-template --image golang:1.23
+
+# Collect variable values interactively instead of using defaults
+goplt test --template ./my-template --ask
+```
+
+The generated files are piped as a tar archive to the container's stdin — no
+volume mounts are needed. Post-generation hooks declared in `template.toml` run
+inside the container before `go build` and `go test`.
+
+**Default variable values used during test:**
+
+| Kind | Default used |
+|---|---|
+| text with a default | the declared default value |
+| text with no default (required) | the variable name itself (e.g. `Name`) |
+| bool | the declared default |
+| select | the first option |
+
+**Requirements:** Docker must be installed and in `PATH`. The container needs
+network access to download Go modules.
+
+---
+
 ## CLI reference
+
+### `goplt generate`
 
 ```
 goplt generate [--template <path|module>] [--output <dir>] [--yes]
@@ -256,6 +318,20 @@ goplt generate [--template <path|module>] [--output <dir>] [--yes]
 
 **Safety:** the output directory cannot be the same as, or nested inside, the
 template directory (and vice versa). `goplt` checks this before doing anything.
+
+### `goplt test`
+
+```
+goplt test [--template <path|module>] [--image <docker-image>] [--ask]
+```
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--template` | `-t` | current directory | Local path or Go module reference containing `template.toml` |
+| `--image` | | `golang:latest` | Docker image to use for the build/test sandbox |
+| `--ask` | | `false` | Collect variable values interactively instead of using defaults |
+
+Exit code 0 on success, non-zero on failure — suitable for CI pipelines.
 
 ---
 
@@ -277,6 +353,13 @@ err = goplt.RunHooks(m, outputDir)
 
 // Normalise a variable name to PascalCase
 key := goplt.NormalizeKey("with-connect") // → "WithConnect"
+
+// Access the built-in template function map (snake, camel, pascal, kebab, …)
+fm := goplt.DefaultFuncMap()
+
+// Add custom functions on top of the built-ins
+g := goplt.NewGenerator().WithFuncs(template.FuncMap{"myFunc": myFunc})
+err = g.Generate(fsys, m, outputDir, vars)
 ```
 
 ### Types
@@ -295,11 +378,30 @@ type Hooks struct {
 type PostGenHooks []string
 
 type Variable struct {
-    Name    string       // PascalCase
-    Default any          // string | bool | []string
-    Kind    VariableKind // KindText | KindBool | KindChoiceString
+    Name        string       // PascalCase
+    Default     any          // string | bool | []string
+    Kind        VariableKind // KindText | KindBool | KindChoiceString
+    Description string       // optional; shown as subtitle in the TUI
 }
 ```
+
+### Built-in template functions
+
+`DefaultFuncMap` provides these functions for use in template files:
+
+| Function | Description | Example |
+|---|---|---|
+| `snake` | Convert to snake_case | `{{snake .Name}}` → `my_service` |
+| `camel` | Convert to camelCase | `{{camel .Name}}` → `myService` |
+| `pascal` | Convert to PascalCase | `{{pascal .Name}}` → `MyService` |
+| `kebab` | Convert to kebab-case | `{{kebab .Name}}` → `my-service` |
+| `upper` | UPPER CASE | `{{upper .Name}}` → `MY-SERVICE` |
+| `lower` | lower case | `{{lower .Name}}` → `my-service` |
+| `trim` | Strip leading/trailing whitespace | `{{trim .Name}}` |
+| `replace` | Replace all occurrences | `{{replace "-" "_" .Name}}` |
+| `hasPrefix` | String has prefix | `{{if hasPrefix "github" .OrgPrefix}}` |
+| `hasSuffix` | String has suffix | `{{if hasSuffix ".io" .OrgPrefix}}` |
+| `contains` | String contains substr | `{{if contains "acme" .OrgPrefix}}` |
 
 ---
 
