@@ -144,13 +144,14 @@ func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
 		fmt.Println("     goplt generate --yes ...")
 		fmt.Println()
 
-		fmt.Print("Run these hooks? [y/N]: ")
+		_, _ = fmt.Print("Run these hooks? [y/N]: ")
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
 				return fmt.Errorf("reading hook confirmation: %w", err)
 			}
 			debugf("hooks skipped")
+
 			return nil
 		}
 		if !strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {

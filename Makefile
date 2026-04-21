@@ -1,4 +1,4 @@
-VERSION    := $(shell git describe --abbrev=0 2>/dev/null || echo "")
+VERSION    := $(shell git describe --tags --exact-match 2>/dev/null || echo "dev")
 COMMIT     := $(shell git log --pretty=%h -1 2>/dev/null || echo "none")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 TARGET     := goplt
