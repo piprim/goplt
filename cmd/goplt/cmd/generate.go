@@ -4,6 +4,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,7 +30,7 @@ func newGenerateCmd() *cobra.Command {
 		Use:   "generate",
 		Short: "Generate files from a template directory",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runGenerate(templateDir, outputDir, yes, c.Flags().Changed("output"))
+			return runGenerate(c.Context(), templateDir, outputDir, yes, c.Flags().Changed("output"))
 		},
 	}
 
@@ -44,11 +45,11 @@ func newGenerateCmd() *cobra.Command {
 	return cmd
 }
 
-func runGenerate(templateDir, outputDir string, yes, outputExplicit bool) error {
+func runGenerate(ctx context.Context, templateDir, outputDir string, yes, outputExplicit bool) error {
 	realTemplateDir := templateDir
 
 	if isRemoteRef(templateDir) {
-		resolved, err := resolveRemote(templateDir)
+		resolved, err := resolveRemote(ctx, templateDir)
 		if err != nil {
 			return fmt.Errorf("resolve remote template %q: %w", templateDir, err)
 		}

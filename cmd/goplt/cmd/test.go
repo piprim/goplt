@@ -4,6 +4,7 @@ package cmd
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -26,8 +27,8 @@ func newTestCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test",
 		Short: "Test a template by generating it and running go build + go test in a Docker sandbox",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runTest(templateDir, image, ask)
+		RunE: func(c *cobra.Command, _ []string) error {
+			return runTest(c.Context(), templateDir, image, ask)
 		},
 	}
 
@@ -42,16 +43,16 @@ func newTestCmd() *cobra.Command {
 	return cmd
 }
 
-func runTest(templateDir, image string, ask bool) error {
+func runTest(ctx context.Context, templateDir, image string, ask bool) error {
 	// 1. Verify docker is available before doing any work.
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker not found — install Docker to use goplt test")
+		return errors.New("docker not found — install Docker to use goplt test")
 	}
 
 	// 2. Resolve remote ref if needed.
 	realTemplateDir := templateDir
 	if isRemoteRef(templateDir) {
-		resolved, err := resolveRemote(templateDir)
+		resolved, err := resolveRemote(ctx, templateDir)
 		if err != nil {
 			return fmt.Errorf("resolve remote template %q: %w", templateDir, err)
 		}
@@ -96,20 +97,18 @@ func runTest(templateDir, image string, ask bool) error {
 
 	// 7. Run docker.
 	script := buildScript([]string(m.Hooks.PostGenHooks))
-	dockerCmd := exec.Command("docker", "run", "--rm", "-i", image, "sh", "-c", script)
+	dockerCmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", image, "sh", "-c", script)
 	dockerCmd.Stdin = bytes.NewReader(tarData)
 	dockerCmd.Stdout = os.Stdout
 	dockerCmd.Stderr = os.Stderr
 
 	if err := dockerCmd.Run(); err != nil {
 		_, _ = color.New(color.FgRed).Println("✗ template failed")
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			os.RemoveAll(tmpDir) // os.Exit skips deferred cleanup; remove explicitly
-			os.Exit(exitErr.ExitCode())
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			return &ExitCodeError{Code: exitErr.ExitCode()}
 		}
 
-		return err
+		return fmt.Errorf("docker run: %w", err)
 	}
 
 	_, _ = successC.Println("✓ template ok")
@@ -155,14 +154,19 @@ func buildDefaultVars(variables []goplt.Variable) map[string]any {
 // It unpacks the tar archive from stdin, runs each hook, then builds and tests.
 func buildScript(hooks []string) string {
 	var sb strings.Builder
+	//nolint:revive // strings.Builder.WriteString never returns an error
 	sb.WriteString("set -e\nmkdir /work\ncd /work\ntar xf -\n")
 
 	for _, h := range hooks {
+		//nolint:revive // strings.Builder.WriteString never returns an error
 		sb.WriteString(h)
+		//nolint:revive // strings.Builder.WriteString never returns an error
 		sb.WriteByte('\n')
 	}
 
+	//nolint:revive // strings.Builder.WriteString never returns an error
 	sb.WriteString("go build ./...\ngo test ./...\n")
+
 	return sb.String()
 }
 
@@ -171,7 +175,15 @@ func buildTar(dir string) ([]byte, error) {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
+	// os.OpenRoot prevents symlink TOCTOU: all opens are scoped to dir and
+	// will refuse to follow symlinks that escape it.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("open root %q: %w", dir, err)
+	}
+	defer root.Close()
+
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -182,12 +194,12 @@ func buildTar(dir string) ([]byte, error) {
 
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("relative path for %q: %w", path, err)
 		}
 
 		info, err := d.Info()
 		if err != nil {
-			return err
+			return fmt.Errorf("stat %q: %w", path, err)
 		}
 
 		hdr := &tar.Header{
@@ -198,25 +210,31 @@ func buildTar(dir string) ([]byte, error) {
 		}
 
 		if err := tw.WriteHeader(hdr); err != nil {
-			return err
+			return fmt.Errorf("write tar header for %q: %w", rel, err)
 		}
 
-		f, err := os.Open(path)
+		f, err := root.Open(filepath.ToSlash(rel))
 		if err != nil {
-			return err
+			return fmt.Errorf("open %q: %w", rel, err)
 		}
 		defer f.Close()
 
 		_, err = io.Copy(tw, f)
-		return err
+
+		if err != nil {
+			return fmt.Errorf("failed to copy to tar writer: %w", err)
+		}
+
+		return nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("walk %q: %w", dir, err)
 	}
 
 	if err := tw.Close(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("close tar: %w", err)
 	}
+
 	return buf.Bytes(), nil
 }

@@ -41,16 +41,16 @@ func parseRemoteRef(ref string) (module, version string) {
 // resolveRemote fetches the Go module identified by ref using `go mod download
 // -json` and returns the path to its local cache directory. The ref format is
 // "module/path[@version]". Requires `go` in PATH.
-func resolveRemote(ref string) (string, error) {
+func resolveRemote(ctx context.Context, ref string) (string, error) {
 	module, version := parseRemoteRef(ref)
 	arg := module + "@" + version
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	tCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var stderr bytes.Buffer
 	debugf("fetching module %s", arg)
-	cmd := exec.CommandContext(ctx, "go", "mod", "download", "-json", arg)
+	cmd := exec.CommandContext(tCtx, "go", "mod", "download", "-json", arg)
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 

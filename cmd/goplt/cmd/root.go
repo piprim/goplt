@@ -28,6 +28,12 @@ func NewRootCmd() *cobra.Command {
 	return cmd
 }
 
+// ExitCodeError carries a subprocess exit code that main should forward to
+// os.Exit rather than printing as an error message.
+type ExitCodeError struct{ Code int }
+
+func (e *ExitCodeError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
+
 // debugf prints to stderr only when --debug is set.
 func debugf(format string, args ...any) {
 	if debugMode {

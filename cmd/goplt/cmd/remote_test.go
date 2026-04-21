@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -74,7 +75,7 @@ func TestResolveRemote_real(t *testing.T) {
 		t.Skip("skipping network test in short mode")
 	}
 
-	dir, err := resolveRemote("github.com/piprim/goplt-tmpl/cli-cobra@latest")
+	dir, err := resolveRemote(context.Background(), "github.com/piprim/goplt-tmpl/cli-cobra@latest")
 	require.NoError(t, err)
 	assert.NotEmpty(t, dir)
 
