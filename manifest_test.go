@@ -125,3 +125,69 @@ description = "The module name"
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "default")
 }
+
+func TestLoadManifest_missingFile(t *testing.T) {
+	_, err := goplt.LoadManifest(fstest.MapFS{})
+	require.Error(t, err)
+}
+
+func TestLoadManifest_malformedTOML(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`this is not valid toml ===`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+}
+
+func TestLoadManifest_unsupportedVariableType(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables]
+count = 42
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "count")
+}
+
+func TestLoadManifest_conditionsParsed(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[conditions]
+"internal/connect" = "{{if .WithConnect}}true{{end}}"
+"contracts/proto"  = "{{if and .WithConnect .WithContract}}true{{end}}"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, "{{if .WithConnect}}true{{end}}", m.Conditions["internal/connect"])
+	assert.Equal(t, "{{if and .WithConnect .WithContract}}true{{end}}", m.Conditions["contracts/proto"])
+}
+
+func TestLoadManifest_hooksPreserveOrder(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[hooks]
+post-generate = ["go mod tidy", "git init", "git add ."]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Hooks.PostGenHooks, 3)
+	assert.Equal(t, "go mod tidy", m.Hooks.PostGenHooks[0])
+	assert.Equal(t, "git init", m.Hooks.PostGenHooks[1])
+	assert.Equal(t, "git add .", m.Hooks.PostGenHooks[2])
+}
+
+func TestNormalizeKey_consecutiveSeparators(t *testing.T) {
+	// Double separators should not produce empty word segments
+	result := goplt.NormalizeKey("with--connect")
+	assert.NotEmpty(t, result)
+	assert.Equal(t, "WithConnect", result)
+}
+
+func TestNormalizeKey_leadingTrailingSeparator_notStripped(t *testing.T) {
+	// NormalizeKey does not strip leading/trailing separators — document actual behaviour.
+	assert.Equal(t, "-name-", goplt.NormalizeKey("-name-"))
+}

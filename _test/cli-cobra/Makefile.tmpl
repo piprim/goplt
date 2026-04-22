@@ -1,13 +1,9 @@
-VERSION       := $(shell git describe --abbrev=0 2>/dev/null || echo "{{.Version}}")
-COMMIT        := $(shell git log --pretty=%h -1 2>/dev/null || echo "none")
-BUILD_DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-TARGET        := {{.Name}}
-BIN           := ./bin/$(TARGET)
-MODULE        := {{.OrgPrefix}}/{{.Name}}
-REVISION_FLAG := "-X $(MODULE)/cmd/cmd/version.Version=$(VERSION) \
-                  -X $(MODULE)/cmd/cmd/version.Commit=$(COMMIT) \
-                  -X $(MODULE)/cmd/cmd/version.BuildDate=$(BUILD_DATE)"
-GOARCH        := $(shell go env GOARCH)
+VERSION    := $(shell git describe --tags --exact-match 2>/dev/null || echo "dev")
+TARGET     := {{.Name}}
+BIN        := ./bin/$(TARGET)
+MODULE     := {{.OrgPrefix}}/{{.Name}}
+LDFLAGS    := -ldflags "-X $(MODULE)/cmd/cmd/version.Version=$(VERSION)"
+GOARCH     := $(shell go env GOARCH)
 
 ifeq ($(OS),Windows_NT)
     GOOS := windows
@@ -27,34 +23,46 @@ help: ## Show this help message
 	@awk 'BEGIN {FS=":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
 	/^[a-zA-Z_\/-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-build: ## Build the binary
+.PHONY: build
+build: ## Build the binary into ./bin/
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
-	go build -o $(BIN) -ldflags $(REVISION_FLAG) ./cmd/
+	go build $(LDFLAGS) -o $(BIN) ./cmd/
 
-test: ## Run unit tests
-	gotestsum --format pkgname ./...
+GOBIN_DIR := $(shell go env GOBIN)
+ifeq ($(GOBIN_DIR),)
+    GOBIN_DIR := $(shell go env GOPATH)/bin
+endif
 
+.PHONY: install
+install: build ## Install binary to GOBIN (or GOPATH/bin)
+	cp $(BIN) $(GOBIN_DIR)/$(TARGET)
+
+.PHONY: test
+test: ## Run tests (skip network tests)
+	go test -short ./...
+
+.PHONY: test/cover
 test/cover: ## Run tests with coverage report
-	gotestsum --format pkgname -- -cover ./...
+	go test -short -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
 
+.PHONY: lint
 lint: ## Run golangci-lint
 	golangci-lint run
 
-install: build ## Install binary to GOPATH/bin
-	cp $(BIN) $(shell go env GOPATH)/bin/$(TARGET)
-
+.PHONY: clean
 clean: ## Remove build artefacts
-	rm -rf ./bin/
+	rm -rf ./bin/ coverage.out
 
+.PHONY: release
 release: ## Release with goreleaser
 	goreleaser release --clean
 {{- if .WithDocker}}
 
+.PHONY: docker/build
 docker/build: ## Build Docker image
 	docker build -t $(TARGET):$(VERSION) .
 
+.PHONY: docker/push
 docker/push: ## Push Docker image
 	docker push $(TARGET):$(VERSION)
 {{- end}}
-
-.PHONY: build test test/cover lint install clean release{{if .WithDocker}} docker/build docker/push{{end}}

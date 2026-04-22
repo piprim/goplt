@@ -126,7 +126,9 @@ func TestCliCobraTemplate_versionVarsRendered(t *testing.T) {
 
 	ver, err := os.ReadFile(filepath.Join(out, "cmd/cmd/version/version.go"))
 	require.NoError(t, err)
-	assert.Contains(t, string(ver), `Version   = "0.1.0"`)
+	assert.Contains(t, string(ver), `var Version = defaultVersion`)
+	assert.Contains(t, string(ver), `const name = "myapp"`)
+	assert.Contains(t, string(ver), `debug.ReadBuildInfo()`)
 }
 
 func TestCliCobraTemplate_miseEnvEscaped(t *testing.T) {

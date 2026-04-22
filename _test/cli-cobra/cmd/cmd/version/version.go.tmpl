@@ -2,23 +2,76 @@ package version
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
 
-// Injected at build time via -ldflags.
-var (
-	Version   = "{{.Version}}"
-	BuildDate = "unknown"
-	Commit    = "unknown"
-)
+const defaultVersion = "none"
+
+// Version is injected at build time via -ldflags.
+var Version = defaultVersion
+
+const name = "{{.Name}}"
+
+type info struct {
+	time, arch, os, revision string
+	dirty                    bool
+}
+
+func buildInfo() string {
+	vinfo := vcsInfo()
+	if vinfo == nil || vinfo.revision == "" {
+		return fmt.Sprintf("%s %s", name, Version)
+	}
+
+	dirtyStr := ""
+	if vinfo.dirty {
+		dirtyStr = "-dirty"
+	}
+
+	return fmt.Sprintf(`
+Name: %s
+Version: %s
+Arch: %s
+OS: %s
+Revision: %s%s
+Built at: %s
+`, name, Version, vinfo.arch, vinfo.os, vinfo.revision, dirtyStr, vinfo.time)
+}
+
+func vcsInfo() *info {
+	dinfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		return nil
+	}
+
+	out := new(info)
+
+	for _, s := range dinfo.Settings {
+		switch s.Key {
+		case "GOARCH":
+			out.arch = s.Value
+		case "GOOS":
+			out.os = s.Value
+		case "vcs.revision":
+			out.revision = s.Value
+		case "vcs.time":
+			out.time = s.Value
+		case "vcs.modified":
+			out.dirty = s.Value == "true"
+		}
+	}
+
+	return out
+}
 
 func NewCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("version: %s\ncommit:  %s\nbuilt:   %s\n", Version, Commit, BuildDate)
+		Run: func(cmd *cobra.Command, _ []string) {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), buildInfo())
 		},
 	}
 }
