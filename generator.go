@@ -143,7 +143,7 @@ func (g *internalGenerator) isConditionedOut(path string) (bool, error) {
 }
 
 func (g *internalGenerator) renderString(tmplStr string, data any) (string, error) {
-	t, err := template.New("").Funcs(g.funcs).Parse(tmplStr)
+	t, err := template.New("").Funcs(g.funcs).Delims(g.manifest.Delimiters[0], g.manifest.Delimiters[1]).Parse(tmplStr)
 	if err != nil {
 		return "", fmt.Errorf("parse template %q: %w", tmplStr, err)
 	}
@@ -158,7 +158,7 @@ func (g *internalGenerator) renderString(tmplStr string, data any) (string, erro
 }
 
 func (g *internalGenerator) renderBytes(name string, content []byte, data any) ([]byte, error) {
-	t, err := template.New(name).Funcs(g.funcs).Parse(string(content))
+	t, err := template.New(name).Funcs(g.funcs).Delims(g.manifest.Delimiters[0], g.manifest.Delimiters[1]).Parse(string(content))
 	if err != nil {
 		return nil, fmt.Errorf("parse template %q: %w", name, err)
 	}

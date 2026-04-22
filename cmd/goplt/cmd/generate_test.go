@@ -51,11 +51,10 @@ func TestPathGuard_outputNotExistYet(t *testing.T) {
 }
 
 func TestApplyTargetDir_appended(t *testing.T) {
-	manifest := &struct{ TargetDir string }{TargetDir: "{{.Name}}"}
 	vars := map[string]any{"Name": "myapp"}
 	base := "/tmp/out"
 
-	result, err := applyTargetDir(manifest.TargetDir, base, vars, false)
+	result, err := applyTargetDir("{{.Name}}", base, vars, false, [2]string{"{{", "}}"})
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/out/myapp", result)
 }
@@ -63,7 +62,7 @@ func TestApplyTargetDir_appended(t *testing.T) {
 func TestApplyTargetDir_skippedWhenExplicit(t *testing.T) {
 	vars := map[string]any{"Name": "myapp"}
 
-	result, err := applyTargetDir("{{.Name}}", "/tmp/out", vars, true)
+	result, err := applyTargetDir("{{.Name}}", "/tmp/out", vars, true, [2]string{"{{", "}}"})
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/out", result)
 }
@@ -71,7 +70,7 @@ func TestApplyTargetDir_skippedWhenExplicit(t *testing.T) {
 func TestApplyTargetDir_skippedWhenEmpty(t *testing.T) {
 	vars := map[string]any{"Name": "myapp"}
 
-	result, err := applyTargetDir("", "/tmp/out", vars, false)
+	result, err := applyTargetDir("", "/tmp/out", vars, false, [2]string{"{{", "}}"})
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/out", result)
 }
@@ -79,14 +78,14 @@ func TestApplyTargetDir_skippedWhenEmpty(t *testing.T) {
 func TestApplyTargetDir_traversalRejected(t *testing.T) {
 	vars := map[string]any{}
 
-	_, err := applyTargetDir("../../etc", "/tmp/out", vars, false)
+	_, err := applyTargetDir("../../etc", "/tmp/out", vars, false, [2]string{"{{", "}}"})
 	assert.ErrorContains(t, err, "escapes the output directory")
 }
 
 func TestApplyTargetDir_templateRendered(t *testing.T) {
 	vars := map[string]any{"Name": "payment", "OrgPrefix": "github.com/acme"}
 
-	result, err := applyTargetDir("{{.Name}}-svc", "/tmp/out", vars, false)
+	result, err := applyTargetDir("{{.Name}}-svc", "/tmp/out", vars, false, [2]string{"{{", "}}"})
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/out/payment-svc", result)
 }

@@ -191,3 +191,61 @@ func TestNormalizeKey_leadingTrailingSeparator_notStripped(t *testing.T) {
 	// NormalizeKey does not strip leading/trailing separators — document actual behaviour.
 	assert.Equal(t, "-name-", goplt.NormalizeKey("-name-"))
 }
+
+func TestLoadManifest_delimiters_parsed(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["[[", "]]"]
+[variables]
+name = ""
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, [2]string{"[[", "]]"}, m.Delimiters)
+}
+
+func TestLoadManifest_delimiters_absent_defaultsToStandard(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables]
+name = ""
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, [2]string{"{{", "}}"}, m.Delimiters)
+}
+
+func TestLoadManifest_delimiters_invalid_emptyString(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["", "]]"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-empty")
+}
+
+func TestLoadManifest_delimiters_invalid_identical(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["{{", "{{"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "differ")
+}
+
+func TestLoadManifest_delimiters_invalid_wrongCount(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["[["]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "2")
+}

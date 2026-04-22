@@ -1,0 +1,29 @@
+delimiters = ["[[", "]]"]
+target-dir = "[[.Name]]"
+
+[variables.name]
+default     = ""
+description = "Library module name, e.g. mylib"
+
+[variables.description]
+default     = ""
+description = "One-line description of the library"
+
+[variables.complexity]
+default     = ["minimal", "standard", "advanced"]
+description = "Template complexity level"
+
+[variables.license]
+default     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+description = "License to apply"
+
+[variables.toolchain]
+default     = ["make", "mise"]
+description = "Build toolchain (advanced only)"
+
+[conditions]
+"{{.Name}}_example_test.go.tmpl.tmpl" = "[[if ne .Complexity \"minimal\"]]true[[end]]"
+".golangci.yml"                        = "[[if ne .Complexity \"minimal\"]]true[[end]]"
+"internal"                             = "[[if eq .Complexity \"advanced\"]]true[[end]]"
+"Makefile.tmpl.tmpl"                   = "[[if and (eq .Complexity \"advanced\") (eq .Toolchain \"make\")]]true[[end]]"
+"mise.toml.tmpl.tmpl"                  = "[[if and (eq .Complexity \"advanced\") (eq .Toolchain \"mise\")]]true[[end]]"

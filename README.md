@@ -26,6 +26,9 @@ go build -o goplt ./cmd/goplt
 ## Quick start
 
 ```bash
+# Scaffold a new template directory (for template authors)
+goplt init --complexity minimal
+
 # Generate from a local template directory into the current directory
 goplt generate --template ./my-template
 
@@ -302,7 +305,63 @@ network access to download Go modules.
 
 ---
 
+## Scaffolding templates
+
+`goplt init` scaffolds a new template directory for template authors. It generates a
+ready-to-use template skeleton — with a `template.toml`, Go source stubs, and optional
+tooling files — using one of the built-in meta-templates.
+
+```bash
+# Scaffold a new template (opens an interactive form)
+goplt init
+
+# Pre-select a complexity level without going through that TUI question
+goplt init --complexity standard
+
+# Write the skeleton into a specific directory
+goplt init --output ~/dev/my-new-template
+```
+
+### Domains
+
+A **domain** selects which meta-template to scaffold from:
+
+| Domain | Description |
+|---|---|
+| `go-library-simple` | Go library with optional linting, example tests, internal package, and toolchain scaffolding |
+
+### Complexity levels
+
+| Level | Files generated |
+|---|---|
+| `minimal` | `<Name>.go`, `<Name>_test.go`, `go.mod`, `README.md`, `.gitignore`, `template.toml` |
+| `standard` | Adds `.golangci.yml` and an example test file (`<Name>_example_test.go`) |
+| `advanced` | Adds an `internal/<Name>/` package and a `Makefile` or `mise.toml` (toolchain-dependent) |
+
+### Toolchain (advanced only)
+
+When `complexity = advanced` is selected, an additional question chooses the build toolchain:
+
+| Toolchain | File generated |
+|---|---|
+| `make` | `Makefile.tmpl` |
+| `mise` | `mise.toml.tmpl` |
+
+---
+
 ## CLI reference
+
+### `goplt init`
+
+```
+goplt init [--output <dir>] [--domain <name>] [--complexity <level>]
+```
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--output` | `-o` | `<Name>` subdirectory in the current directory | Directory where the template skeleton is written |
+| `--domain` | `-d` | `go-library-simple` | Meta-template domain to scaffold from |
+| `--complexity` | `-c` | (interactive) | Pre-select the complexity level: `minimal`, `standard`, or `advanced` |
 
 ### `goplt generate`
 
@@ -405,6 +464,6 @@ type Variable struct {
 
 ---
 
-## Roadmap
+## LLM policy
 
-- `goplt init` — interactively scaffold a new `template.toml`
+This project is in part assisted by LLMs.

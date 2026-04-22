@@ -1,0 +1,11 @@
+package {{snake .Name}}_test
+
+import (
+	"testing"
+
+	"{{.OrgPrefix}}/{{snake .Name}}"
+)
+
+func Test{{pascal .Name}}(t *testing.T) {
+	_ = {{snake .Name}}.{{pascal .Name}}{}
+}

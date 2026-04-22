@@ -203,6 +203,75 @@ func TestGenerator_withFuncs_addsCustomFunc(t *testing.T) {
 	assert.Equal(t, "hello!", string(content))
 }
 
+func TestGenerate_customDelimiters_substitution(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["[[", "]]"]
+[variables]
+name = ""
+`)},
+		"hello.txt": &fstest.MapFile{Data: []byte("Hello, [[.Name]]!")},
+	}
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "world"}))
+
+	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, world!", string(content))
+}
+
+func TestGenerate_customDelimiters_bracePassthrough(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["[[", "]]"]
+[variables]
+name = ""
+`)},
+		"template.go.tmpl": &fstest.MapFile{Data: []byte("package {{snake .Name}}")},
+	}
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "mylib"}))
+
+	content, err := os.ReadFile(filepath.Join(out, "template.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "package {{snake .Name}}", string(content))
+}
+
+func TestGenerate_customDelimiters_conditionRespected(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+delimiters = ["[[", "]]"]
+[variables]
+with-feature = false
+
+[conditions]
+"feature" = "[[if .WithFeature]]true[[end]]"
+`)},
+		"feature/impl.go": &fstest.MapFile{Data: []byte("package feature")},
+		"main.go":         &fstest.MapFile{Data: []byte("package main")},
+	}
+
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"WithFeature": false}))
+
+	_, err = os.Stat(filepath.Join(out, "feature/impl.go"))
+	assert.True(t, os.IsNotExist(err), "conditioned-out dir must not exist when WithFeature=false")
+
+	_, err = os.Stat(filepath.Join(out, "main.go"))
+	assert.NoError(t, err, "unconditional file must exist")
+}
+
 func TestGenerator_withFuncs_overridesBuiltin(t *testing.T) {
 	fsys := minimalTemplateFS(map[string]string{
 		"hello.txt": `{{.Name | upper}}`,

@@ -73,7 +73,7 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, yes, output
 		return fmt.Errorf("collect vars: %w", err)
 	}
 
-	realOutputDir, err := applyTargetDir(m.TargetDir, outputDir, vars, outputExplicit)
+	realOutputDir, err := applyTargetDir(m.TargetDir, outputDir, vars, outputExplicit, m.Delimiters)
 	if err != nil {
 		return fmt.Errorf("apply target-dir: %w", err)
 	}
@@ -95,12 +95,12 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, yes, output
 // applyTargetDir renders targetDirTmpl against vars and appends the result to
 // outputDir. It is a no-op when outputExplicit is true (--output was set by the
 // caller) or when targetDirTmpl is empty.
-func applyTargetDir(targetDirTmpl, outputDir string, vars map[string]any, outputExplicit bool) (string, error) {
+func applyTargetDir(targetDirTmpl, outputDir string, vars map[string]any, outputExplicit bool, delimiters [2]string) (string, error) {
 	if outputExplicit || targetDirTmpl == "" {
 		return outputDir, nil
 	}
 
-	t, err := template.New("target-dir").Parse(targetDirTmpl)
+	t, err := template.New("target-dir").Delims(delimiters[0], delimiters[1]).Parse(targetDirTmpl)
 	if err != nil {
 		return "", fmt.Errorf("parse target-dir template %q: %w", targetDirTmpl, err)
 	}

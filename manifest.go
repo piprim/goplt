@@ -43,7 +43,8 @@ type Manifest struct {
 	Variables  []Variable
 	Conditions map[string]string // unrendered path prefix → Go template boolean expression
 	Hooks      Hooks
-	TargetDir  string // optional Go template expression; rendered against vars to determine output subdirectory
+	TargetDir  string    // optional Go template expression; rendered against vars to determine output subdirectory
+	Delimiters [2]string // template action delimiters; defaults to ["{{", "}}"]
 }
 
 // NormalizeKey converts hyphen-case, snake_case, or camelCase to PascalCase.
@@ -83,6 +84,7 @@ type rawManifest struct {
 	Conditions map[string]string `mapstructure:"conditions"`
 	Hooks      rawHooks          `mapstructure:"hooks"`
 	TargetDir  string            `mapstructure:"target-dir"`
+	Delimiters []string          `mapstructure:"delimiters"`
 }
 
 type rawHooks struct {
@@ -126,6 +128,21 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 	}
 
 	maps.Copy(m.Conditions, raw.Conditions)
+
+	switch len(raw.Delimiters) {
+	case 0:
+		m.Delimiters = [2]string{"{{", "}}"}
+	case 2:
+		if raw.Delimiters[0] == "" || raw.Delimiters[1] == "" {
+			return nil, fmt.Errorf("delimiters: both values must be non-empty")
+		}
+		if raw.Delimiters[0] == raw.Delimiters[1] {
+			return nil, fmt.Errorf("delimiters: left and right must differ, got %q", raw.Delimiters[0])
+		}
+		m.Delimiters = [2]string{raw.Delimiters[0], raw.Delimiters[1]}
+	default:
+		return nil, fmt.Errorf("delimiters: expected exactly 2 values, got %d", len(raw.Delimiters))
+	}
 
 	for rawName, val := range raw.Variables {
 		v, err := parseVariable(rawName, val)
