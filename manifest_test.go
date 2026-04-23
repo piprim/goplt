@@ -31,6 +31,33 @@ func TestNormalizeKey(t *testing.T) {
 	}
 }
 
+func TestLoadManifest_Description(t *testing.T) {
+	t.Run("parsed_correctly", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "A fine library"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.Equal(t, "A fine library", m.Description)
+	})
+
+	t.Run("missing_returns_error", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"template.toml": &fstest.MapFile{Data: []byte(`
+[variables]
+name = ""
+`)},
+		}
+
+		_, err := goplt.LoadManifest(fsys)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "description")
+	})
+}
+
 func TestLoadManifest_Errors(t *testing.T) {
 	t.Run("missing_file", func(t *testing.T) {
 		_, err := goplt.LoadManifest(fstest.MapFS{})
@@ -49,6 +76,8 @@ func TestLoadManifest_Errors(t *testing.T) {
 	t.Run("unsupported_variable_type", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables]
 count = 42
 `)},
@@ -64,6 +93,7 @@ func TestLoadManifest_TargetDir(t *testing.T) {
 	t.Run("parsed", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 target-dir = "{{.Name}}"
 
 [variables]
@@ -79,6 +109,8 @@ name = ""
 	t.Run("absent", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables]
 name = ""
 `)},
@@ -94,6 +126,8 @@ func TestLoadManifest_Variables(t *testing.T) {
 	t.Run("with_description", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.name]
 default     = ""
 description = "Go module name, e.g. my-service"
@@ -137,6 +171,8 @@ description = "License to apply"
 	t.Run("subtable_without_description", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.name]
 default = ""
 `)},
@@ -151,6 +187,8 @@ default = ""
 	t.Run("subtable_missing_default_or_kind_errors", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.name]
 description = "The module name"
 `)},
@@ -166,6 +204,8 @@ func TestLoadManifest_Conditions(t *testing.T) {
 	t.Run("parsed", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [conditions]
 "internal/connect" = "{{if .WithConnect}}true{{end}}"
 "contracts/proto"  = "{{if and .WithConnect .WithContract}}true{{end}}"
@@ -183,6 +223,8 @@ func TestLoadManifest_Hooks(t *testing.T) {
 	t.Run("preserve_order", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [hooks]
 post-generate = ["go mod tidy", "git init", "git add ."]
 `)},
@@ -201,7 +243,9 @@ func TestLoadManifest_Delimiters(t *testing.T) {
 	t.Run("parsed", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["[[", "]]"]
+
 [variables]
 name = ""
 `)},
@@ -215,6 +259,8 @@ name = ""
 	t.Run("absent_defaults_to_standard", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables]
 name = ""
 `)},
@@ -228,6 +274,7 @@ name = ""
 	t.Run("invalid_empty_string", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["", "]]"]
 `)},
 		}
@@ -240,6 +287,7 @@ delimiters = ["", "]]"]
 	t.Run("invalid_identical", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["{{", "{{"]
 `)},
 		}
@@ -252,6 +300,7 @@ delimiters = ["{{", "{{"]
 	t.Run("invalid_wrong_count", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["[["]
 `)},
 		}
@@ -266,6 +315,8 @@ func TestLoadManifest_NewSyntax(t *testing.T) {
 	t.Run("input_required", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.name]
 kind        = "input"
 required    = true
@@ -285,6 +336,8 @@ description = "Library name"
 	t.Run("input_with_default", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.org-prefix]
 kind  = "input"
 value = "github.com/acme"
@@ -303,6 +356,8 @@ value = "github.com/acme"
 	t.Run("string_choice", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.license]
 kind  = "stringChoice"
 value = ["MIT", "Apache-2.0"]
@@ -320,6 +375,8 @@ value = ["MIT", "Apache-2.0"]
 	t.Run("bool", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.with-connect]
 kind  = "bool"
 value = true
@@ -336,6 +393,8 @@ value = true
 	t.Run("string_list", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind        = "stringList"
 required    = true
@@ -355,6 +414,8 @@ description = "Internal packages"
 	t.Run("string_list_with_suggestions", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind  = "stringList"
 value = ["core", "errors"]
@@ -371,6 +432,8 @@ value = ["core", "errors"]
 	t.Run("unknown_kind_error", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.x]
 kind = "banana"
 `)},
@@ -386,6 +449,8 @@ func TestLoadManifest_BackwardCompat(t *testing.T) {
 	t.Run("empty_default_becomes_required", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.name]
 default     = ""
 description = "Library name"
@@ -404,6 +469,8 @@ description = "Library name"
 	t.Run("non_empty_default", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.org-prefix]
 default = "github.com/acme"
 `)},
@@ -422,6 +489,8 @@ func TestLoadManifest_Loops(t *testing.T) {
 	t.Run("parsed", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind     = "stringList"
 required = true
@@ -439,6 +508,8 @@ required = true
 	t.Run("multiple_entries", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind = "stringList"
 
@@ -459,7 +530,10 @@ kind = "stringList"
 
 	t.Run("absent_produces_empty_map", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`name = ""`)},
+			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+name = ""
+`)},
 		}
 
 		m, err := goplt.LoadManifest(fsys)
@@ -471,6 +545,8 @@ kind = "stringList"
 	t.Run("nested_not_supported", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind = "stringList"
 
@@ -490,6 +566,8 @@ kind = "stringList"
 	t.Run("undeclared_variable_error", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [loops]
 "internal/{{.item}}/" = ["Packages"]
 `)},
@@ -503,6 +581,8 @@ kind = "stringList"
 	t.Run("non_list_variable_error", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind = "input"
 
@@ -519,6 +599,8 @@ kind = "input"
 	t.Run("missing_item_placeholder_error", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind = "stringList"
 
@@ -536,6 +618,8 @@ kind = "stringList"
 		// Verify that a kebab-case varName in TOML is normalized to PascalCase.
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.my-packages]
 kind = "stringList"
 

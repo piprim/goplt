@@ -49,7 +49,8 @@ type Hooks struct {
 
 // Manifest holds the parsed content of a template.toml file.
 type Manifest struct {
-	Variables []Variable
+	Description string // required one-line summary of what this template generates
+	Variables   []Variable
 	// unrendered path prefix → Go template boolean expression
 	Conditions map[string]string
 	Hooks      Hooks
@@ -94,12 +95,13 @@ func NormalizeKey(s string) string {
 
 // rawManifest is the intermediate representation decoded from template.toml.
 type rawManifest struct {
-	Variables  map[string]any      `mapstructure:"variables"`
-	Conditions map[string]string   `mapstructure:"conditions"`
-	Hooks      rawHooks            `mapstructure:"hooks"`
-	TargetDir  string              `mapstructure:"target-dir"`
-	Delimiters []string            `mapstructure:"delimiters"`
-	Loops      map[string][]string `mapstructure:"loops"`
+	Description string              `mapstructure:"description"`
+	Variables   map[string]any      `mapstructure:"variables"`
+	Conditions  map[string]string   `mapstructure:"conditions"`
+	Hooks       rawHooks            `mapstructure:"hooks"`
+	TargetDir   string              `mapstructure:"target-dir"`
+	Delimiters  []string            `mapstructure:"delimiters"`
+	Loops       map[string][]string `mapstructure:"loops"`
 }
 
 type rawHooks struct {
@@ -134,8 +136,13 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 		return nil, fmt.Errorf("decode template.toml: %w", err)
 	}
 
+	if raw.Description == "" {
+		return nil, errors.New("template.toml: missing required field \"description\"")
+	}
+
 	m := &Manifest{
-		Conditions: make(map[string]string, len(raw.Conditions)),
+		Description: raw.Description,
+		Conditions:  make(map[string]string, len(raw.Conditions)),
 		Hooks: Hooks{
 			PostGenHooks: PostGenHooks(raw.Hooks.PostGenerate),
 		},

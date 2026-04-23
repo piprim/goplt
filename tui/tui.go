@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/piprim/goplt"
 )
 
@@ -55,7 +56,7 @@ func CollectVars(m *goplt.Manifest) (map[string]any, error) {
 		return vars, nil
 	}
 
-	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
+	if err := huh.NewForm(newGroup(m.Description, fields...)).Run(); err != nil {
 		return nil, fmt.Errorf("tui form: %w", err)
 	}
 
@@ -64,6 +65,20 @@ func CollectVars(m *goplt.Manifest) (map[string]any, error) {
 	}
 
 	return vars, nil
+}
+
+// newGroup creates a huh.Group from fields, setting the description when non-empty.
+func newGroup(description string, fields ...huh.Field) *huh.Group {
+	var style = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#33DD33")).
+		Padding(1).Align(lipgloss.Center)
+
+	g := huh.NewGroup(fields...).WithTheme(huh.ThemeDracula())
+	if description != "" {
+		g = g.Description("\n" + style.Render(description))
+	}
+
+	return g
 }
 
 // binding pairs a variable name with a function that writes the collected value into vars.

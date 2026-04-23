@@ -109,6 +109,9 @@ The `.tmpl` extension is stripped from the output file name:
 ## template.toml reference
 
 ```toml
+# Required: one-line summary of what this template generates.
+description = "A Go CLI scaffolded with Cobra and Viper"
+
 # Optional: create a named subdirectory in the output dir (ignored when --output is set).
 target-dir = "{{.Name}}"
 
@@ -475,6 +478,7 @@ err = g.Generate(fsys, m, outputDir, vars)
 
 ```go
 type Manifest struct {
+    Description string             // required one-line summary of what this template generates
     Variables  []Variable
     Conditions map[string]string   // path prefix → template boolean expression
     Hooks      Hooks

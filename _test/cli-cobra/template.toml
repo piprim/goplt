@@ -1,43 +1,54 @@
-target-dir = "{{.Name}}"
+description = "A CLI application scaffolded with Cobra, Viper, and optional Docker support"
+target-dir  = "{{.Name}}"
 
 [variables.name]
-default     = ""
+kind        = "input"
+required    = true
 description = "Go module name, e.g. my-service"
 
 [variables.short]
-default     = ""
+kind        = "input"
+required    = true
 description = "One-line description shown in --help output"
 
 [variables.description]
-default     = ""
+kind        = "input"
+required    = true
 description = "Longer project description"
 
 [variables.org-prefix]
-default     = "github.com/acme"
+kind        = "input"
+value       = "github.com/acme"
 description = "Module path prefix, e.g. github.com/yourorg"
 
 [variables.author]
-default     = ""
+kind        = "input"
+required    = true
 description = "Author name for LICENSE file"
 
 [variables.version]
-default     = "0.1.0"
+kind        = "input"
+value       = "0.1.0"
 description = "Initial version tag"
 
 [variables.with-config]
-default     = true
+kind        = "bool"
+value       = true
 description = "Generate a config package with Viper"
 
 [variables.with-docker]
-default     = true
+kind        = "bool"
+value       = true
 description = "Generate a Dockerfile and .dockerignore"
 
 [variables.toolchain]
-default     = ["make", "mise"]
+kind        = "stringChoice"
+value       = ["make", "mise"]
 description = "Build toolchain to scaffold (pick one)"
 
 [variables.license]
-default     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+kind        = "stringChoice"
+value       = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
 description = "License to apply to the project"
 
 [conditions]

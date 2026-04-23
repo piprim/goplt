@@ -4,6 +4,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/huh"
 	"github.com/piprim/goplt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +132,20 @@ func TestBuildField(t *testing.T) {
 
 		field, _ := buildField(v, vars)
 		assert.Nil(t, field)
+	})
+}
+
+func TestNewGroup(t *testing.T) {
+	field := huh.NewInput().Title("Name").Value(new(string))
+
+	t.Run("with_description/returns_non_nil", func(t *testing.T) {
+		g := newGroup("A fine library", field)
+		assert.NotNil(t, g)
+	})
+
+	t.Run("empty_description/returns_non_nil", func(t *testing.T) {
+		g := newGroup("", field)
+		assert.NotNil(t, g)
 	})
 }
 

@@ -1,5 +1,6 @@
-delimiters = ["[[", "]]"]
-target-dir = "[[.Name]]"
+description = "A Go library with configurable complexity, linting, and toolchain support"
+delimiters  = ["[[", "]]"]
+target-dir  = "[[.Name]]"
 
 [variables.name]
 kind        = "input"

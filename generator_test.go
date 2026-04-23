@@ -17,6 +17,8 @@ import (
 func minimalTemplateFS(files map[string]string) fstest.MapFS {
 	fsys := fstest.MapFS{
 		"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test template"
+
 [variables]
 name = ""
 `)},
@@ -31,7 +33,7 @@ name = ""
 
 // loopTemplateFS builds an in-memory FS for loop tests.
 func loopTemplateFS(loopVarDecl, loopsSection string, files map[string]string) fstest.MapFS {
-	toml := "[variables.name]\nkind = \"input\"\nrequired = true\n" + loopVarDecl + loopsSection
+	toml := "description = \"test template\"\n\n[variables.name]\nkind = \"input\"\nrequired = true\n" + loopVarDecl + loopsSection
 	fsys := fstest.MapFS{
 		"template.toml": &fstest.MapFile{Data: []byte(toml)},
 	}
@@ -142,6 +144,8 @@ func TestGenerate(t *testing.T) {
 	t.Run("condition_skips_dir", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables]
 name         = ""
 with-connect = false
@@ -183,7 +187,9 @@ with-connect = false
 	t.Run("custom_delimiters/substitution", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["[[", "]]"]
+
 [variables]
 name = ""
 `)},
@@ -203,7 +209,9 @@ name = ""
 	t.Run("custom_delimiters/brace_passthrough", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["[[", "]]"]
+
 [variables]
 name = ""
 `)},
@@ -223,7 +231,9 @@ name = ""
 	t.Run("custom_delimiters/condition_respected", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
 delimiters = ["[[", "]]"]
+
 [variables]
 with-feature = false
 
@@ -360,6 +370,8 @@ func TestGenerate_Loop(t *testing.T) {
 	t.Run("condition_gates_entire_loop", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.with-internal]
 kind  = "bool"
 value = false
@@ -391,6 +403,8 @@ kind = "stringList"
 	t.Run("per_item_condition", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
 [variables.packages]
 kind = "stringList"
 
