@@ -119,22 +119,31 @@ org-prefix    = "github.com/acme"                          # text with default
 with-connect  = true                                       # bool confirm
 license       = ["MIT", "Apache-2.0", "BSD-3-Clause"]     # select
 
-# Sub-table syntax — adds an optional description shown in the TUI
+# Sub-table syntax — adds description, explicit kind, and required flag
 [variables.name]
-default     = ""
+kind        = "input"
+required    = true
 description = "Go module name, e.g. my-service"
 
 [variables.org-prefix]
-default     = "github.com/acme"
+kind        = "input"
+value       = "github.com/acme"
 description = "Module path prefix, e.g. github.com/yourorg"
 
 [variables.with-connect]
-default     = true
+kind        = "bool"
+value       = true
 description = "Generate a Connect-RPC server"
 
 [variables.license]
-default     = ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]
+kind        = "stringChoice"
+value       = ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]
 description = "License to apply to the project"
+
+[variables.packages]
+kind        = "stringList"
+required    = true
+description = "Internal package names"
 
 [conditions]
 # Skip a path prefix when the expression evaluates to an empty string.
@@ -153,15 +162,15 @@ post-generate = [
 
 ### Variable types
 
-| TOML value | Kind | TUI widget | Notes |
+| `kind` (sub-table) | Flat value | TUI widget | Notes |
 |---|---|---|---|
-| `""` or `"default"` | text | text input | Empty default = required field |
-| `true` / `false` | bool | yes/no confirm | |
-| `["A", "B", "C"]` | select | dropdown | First item = default |
+| `"input"` | `""` or `"default text"` | Text input | `required = true` or empty flat value = mandatory |
+| `"bool"` | `true` / `false` | Yes/No confirm | |
+| `"stringChoice"` | `["A", "B", "C"]` | Dropdown | First item = selected by default |
+| `"stringList"` | *(sub-table only)* | Comma-separated input | Value is `[]string` in templates |
 
-Both syntaxes are equivalent — the sub-table form simply adds an optional
-`description` that appears as a subtitle in the interactive TUI form.
-Flat and sub-table variables can be freely mixed in the same `template.toml`.
+Both syntaxes are equivalent — the sub-table form adds `description`, explicit `kind`, and `required`.
+Flat syntax is shorthand for the three original kinds; `stringList` requires the sub-table form.
 
 ### Variable name normalisation
 
@@ -208,6 +217,47 @@ combine multiple variables:
 ```toml
 "contracts/proto" = "{{if and .WithContract .WithConnect}}true{{end}}"
 ```
+
+### Loops
+
+A loop generates one copy of a directory subtree for every item in a `stringList` variable. The `{{.item}}` placeholder is available in both paths and file contents during each iteration.
+
+```toml
+[variables.packages]
+kind        = "stringList"
+required    = true
+description = "Internal package names"
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+```
+
+With `Packages = ["auth", "hash"]` the generator produces `internal/auth/` and `internal/hash/`, rendering every file in the template subtree once per item.
+
+**Loop variable in templates:**
+
+```go
+// internal/{{.item}}/{{.item}}.go — item is the current package name
+package {{.item}}
+```
+
+**Combining with conditions:**
+
+A condition on the parent prefix gates the entire loop:
+```toml
+[conditions]
+"internal/" = "{{if .WithInternal}}true{{end}}"
+```
+
+A condition key that contains `{{.item}}` is evaluated per item:
+```toml
+[conditions]
+"internal/{{.item}}/" = "{{if ne .item \"skip\"}}true{{end}}"
+```
+
+**Restrictions (v1):** only one variable name per loop entry — nested loops are not yet supported.
+
+---
 
 ### Hooks
 
@@ -426,8 +476,11 @@ err = g.Generate(fsys, m, outputDir, vars)
 ```go
 type Manifest struct {
     Variables  []Variable
-    Conditions map[string]string
+    Conditions map[string]string   // path prefix → template boolean expression
     Hooks      Hooks
+    TargetDir  string              // optional template expression for output subdirectory
+    Delimiters [2]string           // action delimiters; default ["{{", "}}"]
+    Loops      map[string][]string // path pattern → [varName]; varName must be KindListString
 }
 
 type Hooks struct {
@@ -438,8 +491,9 @@ type PostGenHooks []string
 
 type Variable struct {
     Name        string       // PascalCase
-    Default     any          // string | bool | []string
-    Kind        VariableKind // KindText | KindBool | KindChoiceString
+    Kind        VariableKind // KindInput | KindBool | KindChoiceString | KindListString
+    Value       any          // string (KindInput default) | bool (KindBool default) | []string (choices or suggestions)
+    Required    bool         // KindInput/KindListString: validation fails on empty
     Description string       // optional; shown as subtitle in the TUI
 }
 ```

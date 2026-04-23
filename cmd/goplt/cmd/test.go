@@ -124,25 +124,32 @@ func buildDefaultVars(variables []goplt.Variable) map[string]any {
 	for _, v := range variables {
 		switch v.Kind {
 		case goplt.KindText:
-			if s, ok := v.Default.(string); ok && s != "" {
+			if s, ok := v.Value.(string); ok && s != "" {
 				result[v.Name] = s
 			} else {
 				result[v.Name] = v.Name
 			}
 
 		case goplt.KindBool:
-			if b, ok := v.Default.(bool); ok {
+			if b, ok := v.Value.(bool); ok {
 				result[v.Name] = b
 			} else {
 				result[v.Name] = false
 			}
 
-		case goplt.KindChoiceString:
-			choices, _ := v.Default.([]string)
+		case goplt.KindStringChoice:
+			choices, _ := v.Value.([]string)
 			if len(choices) > 0 {
 				result[v.Name] = choices[0]
 			} else {
 				result[v.Name] = ""
+			}
+
+		case goplt.KindStringList:
+			if items, ok := v.Value.([]string); ok && len(items) > 0 {
+				result[v.Name] = items
+			} else {
+				result[v.Name] = []string{v.Name}
 			}
 		}
 	}

@@ -2,23 +2,28 @@ delimiters = ["[[", "]]"]
 target-dir = "[[.Name]]"
 
 [variables.name]
-default     = ""
+kind        = "input"
+required    = true
 description = "Library module name, e.g. mylib"
 
 [variables.description]
-default     = ""
+kind        = "input"
+required    = true
 description = "One-line description of the library"
 
 [variables.complexity]
-default     = ["minimal", "standard", "advanced"]
+kind        = "stringChoice"
+value       = ["minimal", "standard", "advanced"]
 description = "Template complexity level"
 
 [variables.license]
-default     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+kind        = "stringChoice"
+value       = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
 description = "License to apply"
 
 [variables.toolchain]
-default     = ["make", "mise"]
+kind        = "stringChoice"
+value       = ["make", "mise"]
 description = "Build toolchain (advanced only)"
 
 [conditions]

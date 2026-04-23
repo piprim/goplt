@@ -292,3 +292,145 @@ func TestGenerator_withFuncs_overridesBuiltin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "OVERRIDDEN", string(content))
 }
+
+func loopTemplateFS(loopVarDecl, loopsSection string, files map[string]string) fstest.MapFS {
+	toml := "[variables.name]\nkind = \"input\"\nrequired = true\n" + loopVarDecl + loopsSection
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(toml)},
+	}
+	for path, content := range files {
+		fsys[path] = &fstest.MapFile{Data: []byte(content)}
+	}
+	return fsys
+}
+
+func TestGenerate_loop_producesOneSubtreePerItem(t *testing.T) {
+	fsys := loopTemplateFS(
+		"[variables.packages]\nkind = \"stringList\"\nrequired = true\n",
+		"[loops]\n\"internal/{{.item}}/\" = [\"Packages\"]\n",
+		map[string]string{
+			"internal/{{.item}}/doc.go": "package {{.item}}",
+		},
+	)
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{
+		"Name":     "mylib",
+		"Packages": []string{"auth", "hash"},
+	}))
+	for _, pkg := range []string{"auth", "hash"} {
+		content, err := os.ReadFile(filepath.Join(out, "internal", pkg, "doc.go"))
+		require.NoError(t, err, "expected internal/%s/doc.go", pkg)
+		assert.Equal(t, "package "+pkg, string(content))
+	}
+}
+
+func TestGenerate_loop_itemAndOtherVarsAvailableInContent(t *testing.T) {
+	fsys := loopTemplateFS(
+		"[variables.packages]\nkind = \"stringList\"\nrequired = true\n",
+		"[loops]\n\"internal/{{.item}}/\" = [\"Packages\"]\n",
+		map[string]string{
+			"internal/{{.item}}/{{.item}}.go": "// part of {{.Name}}\npackage {{.item}}",
+		},
+	)
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{
+		"Name":     "mylib",
+		"Packages": []string{"auth"},
+	}))
+	content, err := os.ReadFile(filepath.Join(out, "internal", "auth", "auth.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "// part of mylib\npackage auth", string(content))
+}
+
+func TestGenerate_loop_noItems_writesNothing(t *testing.T) {
+	fsys := loopTemplateFS(
+		"[variables.packages]\nkind = \"stringList\"\n",
+		"[loops]\n\"internal/{{.item}}/\" = [\"Packages\"]\n",
+		map[string]string{
+			"internal/{{.item}}/doc.go": "package {{.item}}",
+		},
+	)
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{
+		"Name":     "mylib",
+		"Packages": []string{},
+	}))
+	_, err = os.Stat(filepath.Join(out, "internal"))
+	assert.True(t, os.IsNotExist(err), "internal/ must not exist with no packages")
+}
+
+func TestGenerate_loop_conditionGatesEntireLoop(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.with-internal]
+kind  = "bool"
+value = false
+
+[variables.packages]
+kind = "stringList"
+
+[conditions]
+"internal/" = "{{if .WithInternal}}true{{end}}"
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+`)},
+		"internal/{{.item}}/doc.go": &fstest.MapFile{Data: []byte("package {{.item}}")},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{
+		"WithInternal": false,
+		"Packages":     []string{"auth", "hash"},
+	}))
+	_, err = os.Stat(filepath.Join(out, "internal"))
+	assert.True(t, os.IsNotExist(err), "internal/ must not exist when WithInternal=false")
+}
+
+func TestGenerate_loop_perItemCondition(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind = "stringList"
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+
+[conditions]
+"internal/{{.item}}/" = "{{if ne .item \"skip\"}}true{{end}}"
+`)},
+		"internal/{{.item}}/doc.go": &fstest.MapFile{Data: []byte("package {{.item}}")},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{
+		"Packages": []string{"auth", "skip", "hash"},
+	}))
+	for _, pkg := range []string{"auth", "hash"} {
+		_, err = os.Stat(filepath.Join(out, "internal", pkg, "doc.go"))
+		assert.NoError(t, err, "expected internal/%s/doc.go", pkg)
+	}
+	_, err = os.Stat(filepath.Join(out, "internal", "skip", "doc.go"))
+	assert.True(t, os.IsNotExist(err), "internal/skip/doc.go must not exist")
+}
+
+func TestGenerate_loop_noLoops_existingBehaviourUnchanged(t *testing.T) {
+	fsys := minimalTemplateFS(map[string]string{
+		"hello.txt": "Hello, {{.Name}}!",
+	})
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	out := t.TempDir()
+	require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "world"}))
+	content, err := os.ReadFile(filepath.Join(out, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, world!", string(content))
+}

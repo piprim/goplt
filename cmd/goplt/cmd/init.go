@@ -34,6 +34,28 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
+func orderingComplexity(m *goplt.Manifest, complexity string) {
+	if complexity == "" {
+		return
+	}
+
+	for i := range m.Variables {
+		if m.Variables[i].Name != "Complexity" {
+			continue
+		}
+
+		reordered := []string{complexity}
+		for _, c := range []string{"minimal", "standard", "advanced"} {
+			if c != complexity {
+				reordered = append(reordered, c)
+			}
+		}
+		m.Variables[i].Value = reordered
+
+		break
+	}
+}
+
 func runInit(outputDir, domain, complexity string, outputExplicit bool) error {
 	subFS, _ := fs.Sub(inittempl.FS, "templates/"+domain)
 
@@ -42,23 +64,11 @@ func runInit(outputDir, domain, complexity string, outputExplicit bool) error {
 		if _, statErr := fs.Stat(subFS, "template.toml"); statErr != nil {
 			return fmt.Errorf("domain %q not found", domain)
 		}
+
 		return fmt.Errorf("load meta-manifest: %w", err)
 	}
 
-	if complexity != "" {
-		for i := range m.Variables {
-			if m.Variables[i].Name == "Complexity" {
-				reordered := []string{complexity}
-				for _, c := range []string{"minimal", "standard", "advanced"} {
-					if c != complexity {
-						reordered = append(reordered, c)
-					}
-				}
-				m.Variables[i].Default = reordered
-				break
-			}
-		}
-	}
+	orderingComplexity(m, complexity)
 
 	vars, err := tui.CollectVars(m)
 	if err != nil {
@@ -76,5 +86,6 @@ func runInit(outputDir, domain, complexity string, outputExplicit bool) error {
 	}
 
 	_, _ = successC.Println("✓ Template scaffolded in " + realOutputDir)
+
 	return nil
 }

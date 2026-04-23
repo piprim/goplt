@@ -4,13 +4,16 @@ target-dir = "{{.Name}}"
 [variables]
 
 [variables.name]
-default     = ""
+kind        = "input"
+required    = true
 description = "Library name"
 
 [variables.org-prefix]
-default     = "github.com/acme"
+kind        = "input"
+value       = "github.com/acme"
 description = "Module path prefix"
 
 [variables.license]
-default     = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
+kind        = "stringChoice"
+value       = ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"]
 description = "License to apply"

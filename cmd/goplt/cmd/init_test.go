@@ -172,16 +172,29 @@ func defaultVarsFromManifest(m *goplt.Manifest) map[string]any {
 	vars := make(map[string]any, len(m.Variables))
 	for _, v := range m.Variables {
 		switch v.Kind {
-		case goplt.KindText:
-			if s, _ := v.Default.(string); s != "" {
+		case goplt.KindInput: // KindText is an alias, both work
+			if s, _ := v.Value.(string); s != "" {
 				vars[v.Name] = s
 			} else {
 				vars[v.Name] = v.Name
 			}
 		case goplt.KindBool:
-			vars[v.Name] = v.Default
-		case goplt.KindChoiceString:
-			vars[v.Name] = v.Default.([]string)[0]
+			if b, ok := v.Value.(bool); ok {
+				vars[v.Name] = b
+			} else {
+				vars[v.Name] = false
+			}
+		case goplt.KindStringChoice:
+			choices, _ := v.Value.([]string)
+			if len(choices) > 0 {
+				vars[v.Name] = choices[0]
+			}
+		case goplt.KindStringList:
+			if items, ok := v.Value.([]string); ok && len(items) > 0 {
+				vars[v.Name] = items
+			} else {
+				vars[v.Name] = []string{v.Name}
+			}
 		}
 	}
 	return vars

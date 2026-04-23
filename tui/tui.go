@@ -2,24 +2,43 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/piprim/goplt"
 )
+
+// initVars seeds vars from manifest defaults. Pure function, no I/O.
+func initVars(m *goplt.Manifest) map[string]any {
+	vars := make(map[string]any, len(m.Variables))
+	for _, v := range m.Variables {
+		switch v.Kind {
+		case goplt.KindStringList:
+			if items, ok := v.Value.([]string); ok {
+				vars[v.Name] = slices.Clone(items)
+			} else {
+				vars[v.Name] = []string{}
+			}
+		default:
+			vars[v.Name] = v.Value
+		}
+	}
+
+	return vars
+}
 
 // CollectVars runs an interactive TUI form for all variables declared in m.
 // It returns a PascalCase-keyed map of the collected values, ready to pass
 // to goplt.Generate.
 func CollectVars(m *goplt.Manifest) (map[string]any, error) {
 	if m == nil {
-		return nil, fmt.Errorf("manifest is nil")
+		return nil, errors.New("manifest is nil")
 	}
 
-	vars := make(map[string]any, len(m.Variables))
-	for _, v := range m.Variables {
-		vars[v.Name] = v.Default
-	}
+	vars := initVars(m)
 
 	var bindings []binding
 	var fields []huh.Field
@@ -55,70 +74,111 @@ type binding struct {
 
 // buildField constructs a huh.Field and its binding for a single manifest variable.
 func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
-	name := v.Name
-
 	switch v.Kind {
 	case goplt.KindText:
-		val := ""
-		if s, ok := v.Default.(string); ok {
-			val = s
-		}
-
-		ptr := &val
-		field := huh.NewInput().
-			Title(name).
-			Value(ptr).
-			Validate(func(s string) error {
-				if def, _ := v.Default.(string); def == "" && s == "" {
-					return fmt.Errorf("%s is required", name)
-				}
-				return nil
-			})
-
-		if v.Description != "" {
-			field = field.Description(v.Description)
-		}
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
+		return buildInputField(v, vars)
 	case goplt.KindBool:
-		val := false
-		if b, ok := v.Default.(bool); ok {
-			val = b
-		}
-
-		ptr := &val
-		field := huh.NewConfirm().Title(name).Value(ptr)
-
-		if v.Description != "" {
-			field = field.Description(v.Description)
-		}
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
-	case goplt.KindChoiceString:
-		choices, _ := v.Default.([]string)
-		opts := make([]huh.Option[string], len(choices))
-
-		for j, c := range choices {
-			opts[j] = huh.NewOption(c, c)
-		}
-
-		val := ""
-		if len(choices) > 0 {
-			val = choices[0]
-		}
-
-		ptr := &val
-		field := huh.NewSelect[string]().Title(name).Options(opts...).Value(ptr)
-
-		if v.Description != "" {
-			field = field.Description(v.Description)
-		}
-
-		return field, binding{name: name, apply: func() { vars[name] = *ptr }}
-
+		return buildBoolField(v, vars)
+	case goplt.KindStringChoice:
+		return buildStringChoiceField(v, vars)
+	case goplt.KindStringList:
+		return buildStringListField(v, vars)
 	default:
 		return nil, binding{}
 	}
+}
+
+func buildInputField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	val := ""
+	if s, ok := v.Value.(string); ok {
+		val = s
+	}
+	ptr := &val
+	field := huh.NewInput().
+		Title(name).
+		Value(ptr).
+		Validate(func(s string) error {
+			if v.Required && s == "" {
+				return fmt.Errorf("%s is required", name)
+			}
+
+			return nil
+		})
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
+}
+
+func buildBoolField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	val := false
+	if b, ok := v.Value.(bool); ok {
+		val = b
+	}
+	ptr := &val
+	field := huh.NewConfirm().Title(name).Value(ptr)
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
+}
+
+func buildStringChoiceField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	choices, _ := v.Value.([]string)
+	opts := make([]huh.Option[string], len(choices))
+	for j, c := range choices {
+		opts[j] = huh.NewOption(c, c)
+	}
+	val := ""
+	if len(choices) > 0 {
+		val = choices[0]
+	}
+	ptr := &val
+	field := huh.NewSelect[string]().Title(name).Options(opts...).Value(ptr)
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
+}
+
+func buildStringListField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	suggestions, _ := v.Value.([]string)
+	initial := strings.Join(suggestions, ", ")
+	ptr := &initial
+	field := huh.NewInput().
+		Title(name).
+		Value(ptr).
+		Validate(func(s string) error {
+			if v.Required && len(parseListInput(s)) == 0 {
+				return fmt.Errorf("%s is required", name)
+			}
+
+			return nil
+		})
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() { vars[name] = parseListInput(*ptr) }}
+}
+
+// parseListInput splits a comma-separated string into a trimmed, non-empty slice.
+func parseListInput(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+
+	return out
 }

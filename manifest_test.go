@@ -85,17 +85,18 @@ description = "License to apply"
 
 	name := byName["Name"]
 	assert.Equal(t, goplt.KindText, name.Kind)
-	assert.Equal(t, "", name.Default)
+	assert.Equal(t, "", name.Value)
+	assert.True(t, name.Required)
 	assert.Equal(t, "Go module name, e.g. my-service", name.Description)
 
 	docker := byName["WithDocker"]
 	assert.Equal(t, goplt.KindBool, docker.Kind)
-	assert.Equal(t, true, docker.Default)
+	assert.Equal(t, true, docker.Value)
 	assert.Equal(t, "Generate a Dockerfile", docker.Description)
 
 	license := byName["License"]
-	assert.Equal(t, goplt.KindChoiceString, license.Kind)
-	assert.Equal(t, []string{"MIT", "Apache-2.0"}, license.Default)
+	assert.Equal(t, goplt.KindStringChoice, license.Kind)
+	assert.Equal(t, []string{"MIT", "Apache-2.0"}, license.Value)
 	assert.Equal(t, "License to apply", license.Description)
 }
 
@@ -248,4 +249,270 @@ delimiters = ["[["]
 	_, err := goplt.LoadManifest(fsys)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "2")
+}
+
+func TestLoadManifest_newSyntax_input_required(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.name]
+kind        = "input"
+required    = true
+description = "Library name"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Variables, 1)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindInput, v.Kind)
+	assert.True(t, v.Required)
+	assert.Equal(t, "Library name", v.Description)
+}
+
+func TestLoadManifest_newSyntax_input_withDefault(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.org-prefix]
+kind  = "input"
+value = "github.com/acme"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Variables, 1)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindInput, v.Kind)
+	assert.Equal(t, "github.com/acme", v.Value)
+	assert.False(t, v.Required)
+}
+
+func TestLoadManifest_newSyntax_stringChoice(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.license]
+kind  = "stringChoice"
+value = ["MIT", "Apache-2.0"]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Variables, 1)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindStringChoice, v.Kind)
+	assert.Equal(t, []string{"MIT", "Apache-2.0"}, v.Value)
+}
+
+func TestLoadManifest_newSyntax_bool(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.with-connect]
+kind  = "bool"
+value = true
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindBool, v.Kind)
+	assert.Equal(t, true, v.Value)
+}
+
+func TestLoadManifest_newSyntax_stringList(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind     = "stringList"
+required = true
+description = "Internal packages"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Variables, 1)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindStringList, v.Kind)
+	assert.True(t, v.Required)
+	assert.Equal(t, "Internal packages", v.Description)
+}
+
+func TestLoadManifest_newSyntax_stringList_withSuggestions(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind  = "stringList"
+value = ["core", "errors"]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindStringList, v.Kind)
+	assert.Equal(t, []string{"core", "errors"}, v.Value)
+}
+
+func TestLoadManifest_newSyntax_unknownKind_error(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.x]
+kind = "banana"
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "banana")
+}
+
+func TestLoadManifest_backwardCompat_defaultEmpty_becomesRequired(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.name]
+default     = ""
+description = "Library name"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	require.Len(t, m.Variables, 1)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindInput, v.Kind)
+	assert.True(t, v.Required)
+	assert.Equal(t, "Library name", v.Description)
+}
+
+func TestLoadManifest_backwardCompat_defaultNonEmpty(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.org-prefix]
+default = "github.com/acme"
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	v := m.Variables[0]
+	assert.Equal(t, goplt.KindInput, v.Kind)
+	assert.Equal(t, "github.com/acme", v.Value)
+	assert.False(t, v.Required)
+}
+
+func TestLoadManifest_loops_parsed(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind     = "stringList"
+required = true
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Packages"}, m.Loops["internal/{{.item}}/"])
+}
+
+func TestLoadManifest_loops_multipleEntries(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind = "stringList"
+
+[variables.commands]
+kind = "stringList"
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+"cmd/{{.item}}/"      = ["Commands"]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Packages"}, m.Loops["internal/{{.item}}/"])
+	assert.Equal(t, []string{"Commands"}, m.Loops["cmd/{{.item}}/"])
+}
+
+func TestLoadManifest_loops_absent_nilMap(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`name = ""`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	assert.NotNil(t, m.Loops)
+	assert.Len(t, m.Loops, 0)
+}
+
+func TestLoadManifest_loops_nestedNotSupported(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind = "stringList"
+
+[variables.subpkgs]
+kind = "stringList"
+
+[loops]
+"internal/{{.item}}/" = ["Packages", "Subpkgs"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nested loops")
+}
+
+func TestLoadManifest_loops_undeclaredVariable_error(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Packages")
+}
+
+func TestLoadManifest_loops_nonListVariable_error(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind = "input"
+
+[loops]
+"internal/{{.item}}/" = ["Packages"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stringList")
+}
+
+func TestLoadManifest_loops_missingItemPlaceholder_error(t *testing.T) {
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.packages]
+kind = "stringList"
+
+[loops]
+"internal/pkg/" = ["Packages"]
+`)},
+	}
+	_, err := goplt.LoadManifest(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "{{.item}}")
+}
+
+func TestLoadManifest_loops_varNameNormalized(t *testing.T) {
+	// Verify that loop varName in TOML (kebab-case) is normalized to PascalCase.
+	fsys := fstest.MapFS{
+		"template.toml": &fstest.MapFile{Data: []byte(`
+[variables.my-packages]
+kind = "stringList"
+
+[loops]
+"internal/{{.item}}/" = ["my-packages"]
+`)},
+	}
+	m, err := goplt.LoadManifest(fsys)
+	require.NoError(t, err)
+	// The varName stored in m.Loops must be PascalCase, matching Variable.Name.
+	assert.Equal(t, []string{"MyPackages"}, m.Loops["internal/{{.item}}/"])
 }

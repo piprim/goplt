@@ -95,7 +95,9 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, yes, output
 // applyTargetDir renders targetDirTmpl against vars and appends the result to
 // outputDir. It is a no-op when outputExplicit is true (--output was set by the
 // caller) or when targetDirTmpl is empty.
-func applyTargetDir(targetDirTmpl, outputDir string, vars map[string]any, outputExplicit bool, delimiters [2]string) (string, error) {
+func applyTargetDir(
+	targetDirTmpl, outputDir string, vars map[string]any,
+	outputExplicit bool, delimiters [2]string) (string, error) {
 	if outputExplicit || targetDirTmpl == "" {
 		return outputDir, nil
 	}

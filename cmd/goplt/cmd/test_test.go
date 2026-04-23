@@ -16,7 +16,7 @@ import (
 
 func TestBuildDefaultVars_kindText_withDefault(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "OrgPrefix", Kind: goplt.KindText, Default: "github.com/acme"},
+		{Name: "OrgPrefix", Kind: goplt.KindText, Value: "github.com/acme"},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, "github.com/acme", result["OrgPrefix"])
@@ -24,7 +24,7 @@ func TestBuildDefaultVars_kindText_withDefault(t *testing.T) {
 
 func TestBuildDefaultVars_kindText_emptyDefault_usesName(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "Name", Kind: goplt.KindText, Default: ""},
+		{Name: "Name", Kind: goplt.KindText, Required: true},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, "Name", result["Name"])
@@ -32,7 +32,7 @@ func TestBuildDefaultVars_kindText_emptyDefault_usesName(t *testing.T) {
 
 func TestBuildDefaultVars_kindBool(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "WithDocker", Kind: goplt.KindBool, Default: true},
+		{Name: "WithDocker", Kind: goplt.KindBool, Value: true},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, true, result["WithDocker"])
@@ -40,7 +40,7 @@ func TestBuildDefaultVars_kindBool(t *testing.T) {
 
 func TestBuildDefaultVars_kindChoiceString_firstElement(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "License", Kind: goplt.KindChoiceString, Default: []string{"MIT", "Apache-2.0"}},
+		{Name: "License", Kind: goplt.KindStringChoice, Value: []string{"MIT", "Apache-2.0"}},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, "MIT", result["License"])
@@ -81,7 +81,7 @@ func TestBuildDefaultVars_emptyList(t *testing.T) {
 
 func TestBuildDefaultVars_kindBool_wrongType_fallsBackToFalse(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "Flag", Kind: goplt.KindBool, Default: "not-a-bool"},
+		{Name: "Flag", Kind: goplt.KindBool, Value: "not-a-bool"},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, false, result["Flag"])
@@ -89,10 +89,26 @@ func TestBuildDefaultVars_kindBool_wrongType_fallsBackToFalse(t *testing.T) {
 
 func TestBuildDefaultVars_kindChoiceString_emptyChoices_fallsBackToEmpty(t *testing.T) {
 	vars := []goplt.Variable{
-		{Name: "License", Kind: goplt.KindChoiceString, Default: []string{}},
+		{Name: "License", Kind: goplt.KindStringChoice, Value: []string{}},
 	}
 	result := buildDefaultVars(vars)
 	assert.Equal(t, "", result["License"])
+}
+
+func TestBuildDefaultVars_kindListString_withSuggestions(t *testing.T) {
+	vars := []goplt.Variable{
+		{Name: "Packages", Kind: goplt.KindStringList, Value: []string{"auth", "hash"}},
+	}
+	result := buildDefaultVars(vars)
+	assert.Equal(t, []string{"auth", "hash"}, result["Packages"])
+}
+
+func TestBuildDefaultVars_kindListString_noSuggestions_usesName(t *testing.T) {
+	vars := []goplt.Variable{
+		{Name: "Packages", Kind: goplt.KindStringList},
+	}
+	result := buildDefaultVars(vars)
+	assert.Equal(t, []string{"Packages"}, result["Packages"])
 }
 
 // buildTar helpers
