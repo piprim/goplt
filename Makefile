@@ -44,7 +44,7 @@ install: build ## Install binary to GOBIN (or GOPATH/bin)
 
 .PHONY: test
 test: ## Run tests (skip network tests)
-	go test -short ./...
+	go tool gotestsum --format testdox -- -v ./...
 
 .PHONY: test/all
 test/all: ## Run all tests including network integration tests
