@@ -175,15 +175,13 @@ func (g *internalGenerator) loopEntriesByPath(path string) []loopEntry {
 }
 
 func (g *internalGenerator) isLoopSource(path string) bool {
-	isLoopSource := false
 	for pattern := range g.manifest.Loops {
 		if strings.HasPrefix(path, pattern) {
-			isLoopSource = true
-			break
+			return true
 		}
 	}
 
-	return isLoopSource
+	return false
 }
 
 // isConditionedOut reports whether path should be excluded by a condition.
@@ -291,7 +289,12 @@ func (g *internalGenerator) writeOutputFile(relPath string, content []byte) erro
 		return fmt.Errorf("mkdir for %q: %w", absPath, err)
 	}
 
-	return os.WriteFile(absPath, content, 0600)
+	err := os.WriteFile(absPath, content, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+
+	return nil
 }
 
 // renderLoopEntries renders loop entries.

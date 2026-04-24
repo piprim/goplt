@@ -12,6 +12,10 @@ import (
 	"github.com/piprim/goplt"
 )
 
+var styleDescription = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#33DD33")).
+	Padding(1).Align(lipgloss.Center)
+
 // initVars seeds vars from manifest defaults. Pure function, no I/O.
 func initVars(m *goplt.Manifest) map[string]any {
 	vars := make(map[string]any, len(m.Variables))
@@ -69,13 +73,9 @@ func CollectVars(m *goplt.Manifest) (map[string]any, error) {
 
 // newGroup creates a huh.Group from fields, setting the description when non-empty.
 func newGroup(description string, fields ...huh.Field) *huh.Group {
-	var style = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#33DD33")).
-		Padding(1).Align(lipgloss.Center)
-
 	g := huh.NewGroup(fields...).WithTheme(huh.ThemeDracula())
 	if description != "" {
-		g = g.Description("\n" + style.Render(description))
+		g = g.Description("\n" + styleDescription.Render(description))
 	}
 
 	return g
