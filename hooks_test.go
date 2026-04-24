@@ -32,6 +32,21 @@ func TestRunHooks(t *testing.T) {
 		assert.NoError(t, err, "hook must have created the file")
 	})
 
+	t.Run("quoted_argument", func(t *testing.T) {
+		dir := t.TempDir()
+		m := &goplt.Manifest{
+			Hooks: goplt.Hooks{
+				PostGenHooks: goplt.PostGenHooks{`sh -c "touch 'file with spaces.txt'"`},
+			},
+		}
+
+		err := goplt.RunHooks(m, dir)
+		require.NoError(t, err)
+
+		_, err = os.Stat(filepath.Join(dir, "file with spaces.txt"))
+		assert.NoError(t, err, "hook with quoted argument must create the file")
+	})
+
 	t.Run("stops_on_error", func(t *testing.T) {
 		dir := t.TempDir()
 		m := &goplt.Manifest{

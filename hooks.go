@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strings"
+
+	"github.com/google/shlex"
 )
 
 // RunHooks executes the commands in m.Hooks.PostGenHooks sequentially,
@@ -21,7 +22,10 @@ func RunHooks(m *Manifest, outputDir string) error {
 }
 
 func runHook(cmdStr, dir string) error {
-	parts := strings.Fields(cmdStr)
+	parts, err := shlex.Split(cmdStr)
+	if err != nil {
+		return fmt.Errorf("hook %q: parse command: %w", cmdStr, err)
+	}
 
 	if len(parts) == 0 {
 		return nil
