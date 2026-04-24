@@ -169,6 +169,64 @@ with-connect = false
 		assert.NoError(t, err, "unconditional file must be written")
 	})
 
+	t.Run("condition_key_with_template_var/skips_when_false", func(t *testing.T) {
+		// Regression: condition keys containing {{.Name}} were rendered but the FS walk
+		// path was not, so HasPrefix never matched and the condition was silently ignored.
+		fsys := fstest.MapFS{
+			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables]
+name         = ""
+with-connect = false
+
+[conditions]
+"modules/{{.Name}}/connect" = "{{if .WithConnect}}true{{end}}"
+`)},
+			"modules/{{.Name}}/connect/handler.go": &fstest.MapFile{Data: []byte("package connect")},
+			"modules/{{.Name}}/main.go":            &fstest.MapFile{Data: []byte("package main")},
+		}
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+
+		out := t.TempDir()
+		require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "payment", "WithConnect": false}))
+
+		_, err = os.Stat(filepath.Join(out, "modules/payment/connect/handler.go"))
+		assert.True(t, os.IsNotExist(err), "conditioned-out file must not be written when WithConnect=false")
+
+		_, err = os.Stat(filepath.Join(out, "modules/payment/main.go"))
+		assert.NoError(t, err, "unconditional file must be written")
+	})
+
+	t.Run("condition_key_with_template_var/present_when_true", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"template.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables]
+name         = ""
+with-connect = false
+
+[conditions]
+"modules/{{.Name}}/connect" = "{{if .WithConnect}}true{{end}}"
+`)},
+			"modules/{{.Name}}/connect/handler.go": &fstest.MapFile{Data: []byte("package connect")},
+			"modules/{{.Name}}/main.go":            &fstest.MapFile{Data: []byte("package main")},
+		}
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+
+		out := t.TempDir()
+		require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "payment", "WithConnect": true}))
+
+		_, err = os.Stat(filepath.Join(out, "modules/payment/connect/handler.go"))
+		assert.NoError(t, err, "file must be written when WithConnect=true")
+
+		_, err = os.Stat(filepath.Join(out, "modules/payment/main.go"))
+		assert.NoError(t, err, "unconditional file must be written")
+	})
+
 	t.Run("builtin_funcs_available", func(t *testing.T) {
 		fsys := minimalTemplateFS(map[string]string{
 			"hello.txt": `{{.Name | snake}}`,

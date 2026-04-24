@@ -52,11 +52,11 @@ func (g *Generator) Generate(fsys fs.FS, m *Manifest, outputDir string, vars map
 		funcs:     g.funcs,
 	}
 
-	loopEntries, err := gen.expandLoops()
+	var err error
+	gen.loopEntries, err = gen.expandLoops()
 	if err != nil {
 		return fmt.Errorf("expand loops: %w", err)
 	}
-	gen.loopEntries = loopEntries
 
 	if err := fs.WalkDir(fsys, ".", gen.walk); err != nil {
 		return fmt.Errorf("failed to walk the file tree: %w", err)
@@ -189,6 +189,10 @@ func (g *internalGenerator) isLoopSource(path string) bool {
 // isConditionedOut reports whether path should be excluded by a condition.
 // extraVars is merged into g.vars for the check; pass nil for directory-level checks.
 //
+// Both the condition key pattern and path may contain template variables (e.g. {{.Name}});
+// both are rendered before comparison so that "modules/{{.Name}}/connect" matches the FS
+// path "modules/{{.Name}}/connect/handler.go" after both are expanded with the same vars.
+//
 // Condition keys that contain {{.item}} render to a non-matching string when extraVars
 // is nil (no "item" in scope), so per-item conditions are silently skipped at directory
 // walk time. They are evaluated in renderLoopFile with item in scope.
@@ -199,18 +203,27 @@ func (g *internalGenerator) isConditionedOut(path string, extraVars map[string]a
 		maps.Copy(merged, extraVars)
 		data = merged
 	}
+
+	renderedPath, err := g.renderString(path, data)
+	if err != nil {
+		return false, fmt.Errorf("render path for condition check %q: %w", path, err)
+	}
+
 	for condKeyPattern, expr := range g.manifest.Conditions {
 		condKey, err := g.renderString(condKeyPattern, data)
 		if err != nil {
 			return false, fmt.Errorf("render condition key %q: %w", condKeyPattern, err)
 		}
-		if !strings.HasPrefix(path, condKey) {
+
+		if !strings.HasPrefix(renderedPath, condKey) {
 			continue
 		}
+
 		result, err := g.renderString(expr, data)
 		if err != nil {
 			return false, fmt.Errorf("evaluate condition for prefix %q: %w", condKeyPattern, err)
 		}
+
 		if result == "" {
 			return true, nil
 		}
