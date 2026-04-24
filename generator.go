@@ -99,7 +99,7 @@ func (g *internalGenerator) expandLoops() ([]loopEntry, error) {
 		items, _ := g.vars[varName].([]string)
 		for _, item := range items {
 			data := g.varsWithItem(item)
-			expanded, err := g.renderString(pattern, data)
+			expanded, err := g.render(pattern, data)
 			if err != nil {
 				return nil, fmt.Errorf("expand loop pattern %q with item %q: %w", pattern, item, err)
 			}
@@ -204,13 +204,13 @@ func (g *internalGenerator) isConditionedOut(path string, extraVars map[string]a
 		data = merged
 	}
 
-	renderedPath, err := g.renderString(path, data)
+	renderedPath, err := g.render(path, data)
 	if err != nil {
 		return false, fmt.Errorf("render path for condition check %q: %w", path, err)
 	}
 
 	for condKeyPattern, expr := range g.manifest.Conditions {
-		condKey, err := g.renderString(condKeyPattern, data)
+		condKey, err := g.render(condKeyPattern, data)
 		if err != nil {
 			return false, fmt.Errorf("render condition key %q: %w", condKeyPattern, err)
 		}
@@ -219,7 +219,7 @@ func (g *internalGenerator) isConditionedOut(path string, extraVars map[string]a
 			continue
 		}
 
-		result, err := g.renderString(expr, data)
+		result, err := g.render(expr, data)
 		if err != nil {
 			return false, fmt.Errorf("evaluate condition for prefix %q: %w", condKeyPattern, err)
 		}
@@ -234,7 +234,7 @@ func (g *internalGenerator) isConditionedOut(path string, extraVars map[string]a
 
 // renderFile renders a non-loop template file into the output directory.
 func (g *internalGenerator) renderFile(path string) error {
-	outPath, err := g.renderString(strings.TrimSuffix(path, ".tmpl"), g.vars)
+	outPath, err := g.render(strings.TrimSuffix(path, ".tmpl"), g.vars)
 	if err != nil {
 		return fmt.Errorf("render path %q: %w", path, err)
 	}
@@ -242,7 +242,7 @@ func (g *internalGenerator) renderFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("read template %q: %w", path, err)
 	}
-	rendered, err := g.renderBytes(path, content, g.vars)
+	rendered, err := g.render(string(content), g.vars)
 	if err != nil {
 		return fmt.Errorf("render content of %q: %w", path, err)
 	}
@@ -251,7 +251,7 @@ func (g *internalGenerator) renderFile(path string) error {
 		return fmt.Errorf("mkdir for %q: %w", absPath, err)
 	}
 
-	err = os.WriteFile(absPath, rendered, 0600)
+	err = os.WriteFile(absPath, []byte(rendered), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
@@ -276,7 +276,7 @@ func (g *internalGenerator) renderLoopFile(srcPath string, e loopEntry) error {
 		return nil
 	}
 
-	outPath, err := g.renderString(strings.TrimSuffix(expandedPath, ".tmpl"), data)
+	outPath, err := g.render(strings.TrimSuffix(expandedPath, ".tmpl"), data)
 	if err != nil {
 		return fmt.Errorf("render loop path %q (item=%q): %w", expandedPath, e.Item, err)
 	}
@@ -284,7 +284,7 @@ func (g *internalGenerator) renderLoopFile(srcPath string, e loopEntry) error {
 	if err != nil {
 		return fmt.Errorf("read loop file %q: %w", srcPath, err)
 	}
-	rendered, err := g.renderBytes(srcPath, content, data)
+	rendered, err := g.render(string(content), data)
 	if err != nil {
 		return fmt.Errorf("render loop content %q (item=%q): %w", srcPath, e.Item, err)
 	}
@@ -293,7 +293,7 @@ func (g *internalGenerator) renderLoopFile(srcPath string, e loopEntry) error {
 		return fmt.Errorf("mkdir for %q: %w", absPath, err)
 	}
 
-	err = os.WriteFile(absPath, rendered, 0600)
+	err = os.WriteFile(absPath, []byte(rendered), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
@@ -312,7 +312,7 @@ func (g *internalGenerator) renderLoopEntries(path string, matching []loopEntry)
 	return nil
 }
 
-func (g *internalGenerator) renderString(tmplStr string, data any) (string, error) {
+func (g *internalGenerator) render(tmplStr string, data any) (string, error) {
 	t, err := template.New("").Funcs(g.funcs).Delims(g.manifest.Delimiters[0], g.manifest.Delimiters[1]).Parse(tmplStr)
 	if err != nil {
 		return "", fmt.Errorf("parse template %q: %w", tmplStr, err)
@@ -325,23 +325,4 @@ func (g *internalGenerator) renderString(tmplStr string, data any) (string, erro
 	}
 
 	return buf.String(), nil
-}
-
-func (g *internalGenerator) renderBytes(name string, content []byte, data any) ([]byte, error) {
-	t, err := template.
-		New(name).
-		Funcs(g.funcs).
-		Delims(g.manifest.Delimiters[0], g.manifest.Delimiters[1]).
-		Parse(string(content))
-	if err != nil {
-		return nil, fmt.Errorf("parse template %q: %w", name, err)
-	}
-
-	var buf bytes.Buffer
-
-	if err := t.Execute(&buf, data); err != nil {
-		return nil, fmt.Errorf("execute template %q: %w", name, err)
-	}
-
-	return buf.Bytes(), nil
 }
