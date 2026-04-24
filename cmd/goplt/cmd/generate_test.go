@@ -96,7 +96,7 @@ func TestApplyTargetDir(t *testing.T) {
 
 func TestConfirmAndRunHooks(t *testing.T) {
 	t.Run("no_hooks_is_noop", func(t *testing.T) {
-		err := confirmAndRunHooks(&goplt.Manifest{}, t.TempDir(), true)
+		err := confirmAndRunHooks(t.Context(), &goplt.Manifest{}, t.TempDir(), true)
 		assert.NoError(t, err)
 	})
 
@@ -106,7 +106,7 @@ func TestConfirmAndRunHooks(t *testing.T) {
 			Hooks: goplt.Hooks{PostGenHooks: goplt.PostGenHooks{"touch hook_ran.txt"}},
 		}
 
-		require.NoError(t, confirmAndRunHooks(m, dir, true))
+		require.NoError(t, confirmAndRunHooks(t.Context(), m, dir, true))
 
 		_, err := os.Stat(filepath.Join(dir, "hook_ran.txt"))
 		assert.NoError(t, err, "hook must have created the file")
@@ -121,7 +121,7 @@ func TestConfirmAndRunHooks(t *testing.T) {
 			Hooks: goplt.Hooks{PostGenHooks: goplt.PostGenHooks{`sh -c "touch 'file with spaces.txt'"`}},
 		}
 
-		require.NoError(t, confirmAndRunHooks(m, dir, true))
+		require.NoError(t, confirmAndRunHooks(t.Context(), m, dir, true))
 
 		_, err := os.Stat(filepath.Join(dir, "file with spaces.txt"))
 		assert.NoError(t, err, "file with spaces must be created by the quoted hook argument")
@@ -136,7 +136,7 @@ func TestConfirmAndRunHooks(t *testing.T) {
 			}},
 		}
 
-		err := confirmAndRunHooks(m, dir, true)
+		err := confirmAndRunHooks(t.Context(), m, dir, true)
 		assert.ErrorContains(t, err, "post-generate hooks")
 
 		_, statErr := os.Stat(filepath.Join(dir, "second_ran.txt"))

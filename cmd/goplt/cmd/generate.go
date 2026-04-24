@@ -83,7 +83,7 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, yes, output
 		return fmt.Errorf("generate: %w", err)
 	}
 
-	if err := confirmAndRunHooks(m, realOutputDir, yes); err != nil {
+	if err := confirmAndRunHooks(ctx, m, realOutputDir, yes); err != nil {
 		return err
 	}
 
@@ -128,7 +128,7 @@ func applyTargetDir(
 // confirmAndRunHooks shows a security warning and asks for explicit consent before
 // running post-generate hooks. If --yes is set the prompt is skipped entirely.
 // When no hooks are defined the function is a no-op.
-func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
+func confirmAndRunHooks(ctx context.Context, m *goplt.Manifest, outputDir string, yes bool) error {
 	if len(m.Hooks.PostGenHooks) == 0 {
 		return nil
 	}
@@ -164,7 +164,7 @@ func confirmAndRunHooks(m *goplt.Manifest, outputDir string, yes bool) error {
 		fmt.Println()
 	}
 
-	if err := goplt.RunHooks(m, outputDir); err != nil {
+	if err := goplt.RunHooks(ctx, m, outputDir); err != nil {
 		return fmt.Errorf("post-generate hooks: %w", err)
 	}
 

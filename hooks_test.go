@@ -13,7 +13,7 @@ import (
 func TestRunHooks(t *testing.T) {
 	t.Run("empty_manifest_no_error", func(t *testing.T) {
 		m := &goplt.Manifest{}
-		err := goplt.RunHooks(m, t.TempDir())
+		err := goplt.RunHooks(t.Context(), m, t.TempDir())
 		assert.NoError(t, err)
 	})
 
@@ -25,7 +25,7 @@ func TestRunHooks(t *testing.T) {
 			},
 		}
 
-		err := goplt.RunHooks(m, dir)
+		err := goplt.RunHooks(t.Context(), m, dir)
 		require.NoError(t, err)
 
 		_, err = os.Stat(filepath.Join(dir, "hook_ran.txt"))
@@ -40,7 +40,7 @@ func TestRunHooks(t *testing.T) {
 			},
 		}
 
-		err := goplt.RunHooks(m, dir)
+		err := goplt.RunHooks(t.Context(), m, dir)
 		require.NoError(t, err)
 
 		_, err = os.Stat(filepath.Join(dir, "file with spaces.txt"))
@@ -58,7 +58,7 @@ func TestRunHooks(t *testing.T) {
 			},
 		}
 
-		err := goplt.RunHooks(m, dir)
+		err := goplt.RunHooks(t.Context(), m, dir)
 		assert.ErrorContains(t, err, "false")
 
 		_, statErr := os.Stat(filepath.Join(dir, "second_ran.txt"))

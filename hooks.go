@@ -11,9 +11,10 @@ import (
 // RunHooks executes the commands in m.Hooks.PostGenHooks sequentially,
 // with outputDir as the working directory.
 // Stops and returns an error on the first non-zero exit.
-func RunHooks(m *Manifest, outputDir string) error {
+// Cancelling ctx terminates the running hook process.
+func RunHooks(ctx context.Context, m *Manifest, outputDir string) error {
 	for _, cmdStr := range m.Hooks.PostGenHooks {
-		if err := runHook(cmdStr, outputDir); err != nil {
+		if err := runHook(ctx, cmdStr, outputDir); err != nil {
 			return err
 		}
 	}
@@ -21,7 +22,7 @@ func RunHooks(m *Manifest, outputDir string) error {
 	return nil
 }
 
-func runHook(cmdStr, dir string) error {
+func runHook(ctx context.Context, cmdStr, dir string) error {
 	parts, err := shlex.Split(cmdStr)
 	if err != nil {
 		return fmt.Errorf("hook %q: parse command: %w", cmdStr, err)
@@ -32,7 +33,7 @@ func runHook(cmdStr, dir string) error {
 	}
 
 	//nolint:gosec // The user is already warns about potential security breach.
-	cmd := exec.CommandContext(context.Background(), parts[0], parts[1:]...)
+	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
 	cmd.Dir = dir
 
 	out, err := cmd.CombinedOutput()
