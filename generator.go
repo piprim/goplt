@@ -246,17 +246,8 @@ func (g *internalGenerator) renderFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("render content of %q: %w", path, err)
 	}
-	absPath := filepath.Join(g.outputDir, outPath)
-	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
-		return fmt.Errorf("mkdir for %q: %w", absPath, err)
-	}
 
-	err = os.WriteFile(absPath, []byte(rendered), 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
+	return g.writeOutputFile(outPath, []byte(rendered))
 }
 
 // renderLoopFile renders one loop iteration: src path + one item → one output file.
@@ -288,17 +279,19 @@ func (g *internalGenerator) renderLoopFile(srcPath string, e loopEntry) error {
 	if err != nil {
 		return fmt.Errorf("render loop content %q (item=%q): %w", srcPath, e.Item, err)
 	}
-	absPath := filepath.Join(g.outputDir, outPath)
+
+	return g.writeOutputFile(outPath, []byte(rendered))
+}
+
+// writeOutputFile writes content to relPath under the output directory,
+// creating any missing parent directories.
+func (g *internalGenerator) writeOutputFile(relPath string, content []byte) error {
+	absPath := filepath.Join(g.outputDir, relPath)
 	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
 		return fmt.Errorf("mkdir for %q: %w", absPath, err)
 	}
 
-	err = os.WriteFile(absPath, []byte(rendered), 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
+	return os.WriteFile(absPath, content, 0600)
 }
 
 // renderLoopEntries renders loop entries.
