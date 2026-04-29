@@ -37,6 +37,9 @@ goplt generate --template ./my-template --output ./projects/myapp
 
 # Test a template — generates with defaults, runs go build + go test in Docker
 goplt test --template ./my-template
+
+# Convert an existing Go project into a template
+goplt templatize --output ../my-template
 ```
 
 `goplt generate` will open an interactive form, collect all variable values declared in
@@ -444,6 +447,35 @@ goplt test [--template <path|module>] [--image <docker-image>] [--ask]
 | `--ask` | | `false` | Collect variable values interactively instead of using defaults |
 
 Exit code 0 on success, non-zero on failure — suitable for CI pipelines.
+
+### `goplt templatize`
+
+Converts an existing Go project into a reusable goplt template.
+
+Reads `go.mod` in the source directory to auto-detect the project name and org
+prefix. Opens a TUI to confirm the description, values, and which case forms to
+substitute. Copies the project tree to `--output`, replacing all confirmed values
+with template placeholders, and writes a ready-to-use `template.toml`.
+
+```bash
+# Automatic — reads go.mod, opens TUI
+goplt templatize --output ../my-template
+
+# CI mode — no TUI, substitutes all forms
+goplt templatize --output ../my-template --yes
+
+# Protect "application" from being replaced by "app" substitution
+goplt templatize --output ../my-template --skip application
+```
+
+| Flag | Description |
+|---|---|
+| `-o`, `--output` | Output directory (required) |
+| `-d`, `--dir` | Source directory (default: current directory) |
+| `--name` | Override project name (default: last segment of module path) |
+| `--org-prefix` | Override org prefix (default: everything before last segment) |
+| `--skip` | Protect a string from substitution; repeatable |
+| `-y`, `--yes` | Pre-answer all yes/no questions as "yes" (CI mode) |
 
 ---
 
