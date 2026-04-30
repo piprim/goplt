@@ -137,7 +137,7 @@ func TestTemplatize(t *testing.T) {
 		report, err := goplt.Templatize(fsys, out, subs)
 		require.NoError(t, err)
 
-		content, err := os.ReadFile(filepath.Join(out, "go.mod"))
+		content, err := os.ReadFile(filepath.Join(out, "go.mod.tmpl"))
 		require.NoError(t, err)
 		assert.Equal(t, "module {{.OrgPrefix}}/{{.Name}}\n", string(content))
 
@@ -201,6 +201,70 @@ func TestTemplatize(t *testing.T) {
 			byFrom[r.From] = r.Count
 		}
 		assert.Equal(t, 2, byFrom["my-app"])
+	})
+
+	t.Run("escapes raw {{ not from substitution", func(t *testing.T) {
+		t.Parallel()
+		localSubs := []goplt.Substitution{
+			{Value: "my-app", Placeholder: "{{.Name}}"},
+		}
+		fsys := fstest.MapFS{
+			"COMMIT_MSG": {Data: []byte("Guards against {{ guard))\n")},
+		}
+		out := t.TempDir()
+		_, err := goplt.Templatize(fsys, out, localSubs)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(filepath.Join(out, "COMMIT_MSG"))
+		require.NoError(t, err)
+		assert.Equal(t, `Guards against {{"{{"}} guard))`+"\n", string(content))
+	})
+
+	t.Run("does not escape {{ that are part of substitution placeholders", func(t *testing.T) {
+		t.Parallel()
+		localSubs := []goplt.Substitution{
+			{Value: "my-app", Placeholder: "{{.Name}}"},
+		}
+		fsys := fstest.MapFS{
+			"go.mod": {Data: []byte("module github.com/acme/my-app\n")},
+		}
+		out := t.TempDir()
+		_, err := goplt.Templatize(fsys, out, localSubs)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(filepath.Join(out, "go.mod.tmpl"))
+		require.NoError(t, err)
+		assert.Equal(t, "module github.com/acme/{{.Name}}\n", string(content))
+	})
+
+	t.Run("renames go.mod to go.mod.tmpl", func(t *testing.T) {
+		t.Parallel()
+		fsys := fstest.MapFS{
+			"go.mod": {Data: []byte("module github.com/acme/my-app\n\ngo 1.22\n")},
+		}
+		out := t.TempDir()
+		_, err := goplt.Templatize(fsys, out, subs)
+		require.NoError(t, err)
+
+		_, err = os.Stat(filepath.Join(out, "go.mod.tmpl"))
+		assert.NoError(t, err, "go.mod must be written as go.mod.tmpl")
+
+		_, err = os.Stat(filepath.Join(out, "go.mod"))
+		assert.ErrorIs(t, err, os.ErrNotExist, "bare go.mod must not exist in output")
+	})
+
+	t.Run("skips go.sum", func(t *testing.T) {
+		t.Parallel()
+		fsys := fstest.MapFS{
+			"go.mod": {Data: []byte("module github.com/acme/my-app\n")},
+			"go.sum": {Data: []byte("github.com/example v1.0.0 h1:abc=\n")},
+		}
+		out := t.TempDir()
+		_, err := goplt.Templatize(fsys, out, subs)
+		require.NoError(t, err)
+
+		_, err = os.Stat(filepath.Join(out, "go.sum"))
+		assert.ErrorIs(t, err, os.ErrNotExist, "go.sum must not be copied to output")
 	})
 
 	t.Run("identity pairs protect strings from substitution", func(t *testing.T) {

@@ -286,6 +286,22 @@ name = ""
 		assert.Equal(t, "package {{snake .Name}}", string(content))
 	})
 
+	t.Run("copies_binary_verbatim", func(t *testing.T) {
+		t.Parallel()
+		binary := []byte{0x00, 0x01, 0x02, 0x03, 'h', 'e', 'l', 'l', 'o'}
+		fsys := minimalTemplateFS(map[string]string{})
+		fsys["bin/tool"] = &fstest.MapFile{Data: binary}
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+
+		out := t.TempDir()
+		require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "test"}))
+
+		got, err := os.ReadFile(filepath.Join(out, "bin/tool"))
+		require.NoError(t, err)
+		assert.Equal(t, binary, got)
+	})
+
 	t.Run("custom_delimiters/condition_respected", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"template.toml": &fstest.MapFile{Data: []byte(`

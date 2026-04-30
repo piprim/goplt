@@ -147,6 +147,9 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 		if d.IsDir() {
 			return nil
 		}
+		if path == "go.sum" {
+			return nil
+		}
 
 		data, err := fs.ReadFile(fsys, path)
 		if err != nil {
@@ -164,6 +167,9 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 		}
 
 		outRelPath := replacer.Replace(path)
+		if path == "go.mod" {
+			outRelPath += ".tmpl"
+		}
 		absOut := filepath.Join(outputDir, outRelPath)
 
 		if err := os.MkdirAll(filepath.Dir(absOut), dirPerm); err != nil {
@@ -175,7 +181,7 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 			sniff = sniff[:binarySniffBytes]
 		}
 
-		if bytes.IndexByte(sniff, 0) >= 0 {
+		if isBinary(sniff) {
 			if err := os.WriteFile(absOut, data, srcPerm); err != nil {
 				return fmt.Errorf("templatize: write binary %s: %w", outRelPath, err)
 			}
@@ -201,7 +207,7 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 			}
 		}
 
-		rendered := replacer.Replace(content)
+		rendered := escapeNonPlaceholders(replacer.Replace(content), subs)
 
 		if err := os.WriteFile(absOut, []byte(rendered), srcPerm); err != nil {
 			return fmt.Errorf("templatize: write %s: %w", outRelPath, err)
@@ -237,4 +243,63 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 	slices.Sort(binaryFiles)
 
 	return &TemplatizeReport{Results: results, Skipped: skipped, BinaryFiles: binaryFiles}, nil
+}
+
+// isBinary reports whether data looks like a binary file by checking for a null
+// byte in the first binarySniffBytes bytes. This mirrors the heuristic used by
+// git and many editors to distinguish text from binary content.
+func isBinary(data []byte) bool {
+	return bytes.IndexByte(data, 0) >= 0
+}
+
+// escapeNonPlaceholders replaces any {{ in s that is not the start of a known
+// substitution placeholder with {{"{{"}} — the Go template expression that
+// outputs a literal {{. Without this, source files that contain {{ (shell
+// scripts, plain-text guards, HTML templates) would produce invalid templates
+// that fail with "function not defined" when rendered by goplt generate.
+func escapeNonPlaceholders(s string, subs []Substitution) string {
+	if !strings.Contains(s, "{{") {
+		return s
+	}
+
+	placeholders := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		if sub.Value != sub.Placeholder && strings.Contains(sub.Placeholder, "{{") {
+			placeholders = append(placeholders, sub.Placeholder)
+		}
+	}
+
+	var buf strings.Builder
+	buf.Grow(len(s))
+
+	remaining := s
+	for {
+		idx := strings.Index(remaining, "{{")
+		if idx == -1 {
+			buf.WriteString(remaining)
+
+			break
+		}
+
+		buf.WriteString(remaining[:idx])
+		rest := remaining[idx:]
+
+		matched := false
+		for _, ph := range placeholders {
+			if strings.HasPrefix(rest, ph) {
+				buf.WriteString(ph)
+				remaining = rest[len(ph):]
+				matched = true
+
+				break
+			}
+		}
+
+		if !matched {
+			buf.WriteString(`{{"{{"}}`)
+			remaining = rest[2:]
+		}
+	}
+
+	return buf.String()
 }

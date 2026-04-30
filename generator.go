@@ -231,15 +231,27 @@ func (g *internalGenerator) isConditionedOut(path string, extraVars map[string]a
 }
 
 // renderFile renders a non-loop template file into the output directory.
+// Binary files (null byte in first 512 bytes) are copied verbatim.
 func (g *internalGenerator) renderFile(path string) error {
 	outPath, err := g.render(strings.TrimSuffix(path, ".tmpl"), g.vars)
 	if err != nil {
 		return fmt.Errorf("render path %q: %w", path, err)
 	}
+
 	content, err := fs.ReadFile(g.fsys, path)
 	if err != nil {
 		return fmt.Errorf("read template %q: %w", path, err)
 	}
+
+	sniff := content
+	if len(sniff) > binarySniffBytes {
+		sniff = sniff[:binarySniffBytes]
+	}
+
+	if isBinary(sniff) {
+		return g.writeOutputFile(outPath, content)
+	}
+
 	rendered, err := g.render(string(content), g.vars)
 	if err != nil {
 		return fmt.Errorf("render content of %q: %w", path, err)
@@ -273,6 +285,16 @@ func (g *internalGenerator) renderLoopFile(srcPath string, e loopEntry) error {
 	if err != nil {
 		return fmt.Errorf("read loop file %q: %w", srcPath, err)
 	}
+
+	sniff := content
+	if len(sniff) > binarySniffBytes {
+		sniff = sniff[:binarySniffBytes]
+	}
+
+	if isBinary(sniff) {
+		return g.writeOutputFile(outPath, content)
+	}
+
 	rendered, err := g.render(string(content), data)
 	if err != nil {
 		return fmt.Errorf("render loop content %q (item=%q): %w", srcPath, e.Item, err)

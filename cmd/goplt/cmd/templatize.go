@@ -237,6 +237,9 @@ kind        = "input"
 value       = %q
 description = "Go module path prefix"
 required    = true
+
+[hooks]
+post-generate = ["go mod tidy"]
 `, description, name, orgPrefix)
 
 	if err := os.MkdirAll(outputDir, tmplDirPerm); err != nil {
