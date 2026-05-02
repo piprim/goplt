@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/huandu/xstrings" //nolint:depguard // xstrings is an approved dependency for this package
+	"github.com/huandu/xstrings"
 )
 
 type Substitution struct {
@@ -72,7 +72,7 @@ func BuildSubstitutions(name, orgPrefix string, skip []string) []Substitution {
 		{Value: orgPrefix, Placeholder: "{{.OrgPrefix}}"},
 	}
 
-	seen := map[string]struct{}{}
+	seen := make(map[string]struct{})
 	deduped := make([]Substitution, 0, len(forms))
 
 	for _, s := range forms {
@@ -117,7 +117,7 @@ const (
 // copied verbatim. The .git directory is always skipped.
 // Returns a TemplatizeReport summarising all substitutions and protected strings.
 //
-//nolint:gocognit,funlen // flat walk function; helper structs would obscure the logic
+//nolint:gocognit // flat walk function; helper structs would obscure the logic
 func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeReport, error) {
 	pairs := make([]string, 0, len(subs)*pairsPerSub)
 	for _, s := range subs {
@@ -141,7 +141,7 @@ func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeR
 		if path == "." {
 			return nil
 		}
-		if d.IsDir() && path == ".git" {
+		if path == ".git" && d.IsDir() {
 			return fs.SkipDir
 		}
 		if d.IsDir() {
@@ -276,27 +276,29 @@ func escapeNonPlaceholders(s string, subs []Substitution) string {
 	for {
 		idx := strings.Index(remaining, "{{")
 		if idx == -1 {
-			buf.WriteString(remaining)
+			_, _ = buf.WriteString(remaining)
 
 			break
 		}
 
-		buf.WriteString(remaining[:idx])
+		_, _ = buf.WriteString(remaining[:idx])
 		rest := remaining[idx:]
 
 		matched := false
 		for _, ph := range placeholders {
-			if strings.HasPrefix(rest, ph) {
-				buf.WriteString(ph)
-				remaining = rest[len(ph):]
-				matched = true
-
-				break
+			if !strings.HasPrefix(rest, ph) {
+				continue
 			}
+
+			_, _ = buf.WriteString(ph)
+			remaining = rest[len(ph):]
+			matched = true
+
+			break
 		}
 
 		if !matched {
-			buf.WriteString(`{{"{{"}}`)
+			_, _ = buf.WriteString(`{{"{{"}}`)
 			remaining = rest[2:]
 		}
 	}

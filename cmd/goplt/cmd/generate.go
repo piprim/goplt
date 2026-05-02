@@ -24,28 +24,33 @@ var (
 
 func newGenerateCmd() *cobra.Command {
 	var templateDir, outputDir string
-	var yes bool
+	var yes, noHooks bool
 
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate files from a template directory",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runGenerate(c.Context(), templateDir, outputDir, yes, c.Flags().Changed("output"))
+			return runGenerate(c.Context(), templateDir, outputDir, yes, noHooks, c.Flags().Changed("output"))
 		},
 	}
 
 	wd, _ := os.Getwd()
 	cmd.Flags().StringVarP(
-		&templateDir, "template", "t", wd, "Template directory containing template.toml (default: current directory)")
+		&templateDir, "template", "t", wd, "Template directory containing goplt.toml (default: current directory)")
 	cmd.Flags().StringVarP(
 		&outputDir, "output", "o", wd, "Output directory for generated files (default: current directory)")
 	cmd.Flags().BoolVarP(
 		&yes, "yes", "y", false, "Skip hook confirmation prompt (for CI / trusted templates)")
+	cmd.Flags().BoolVar(
+		&noHooks, "no-hooks", false, "Skip executing post-generation hooks")
 
 	return cmd
 }
 
-func runGenerate(ctx context.Context, templateDir, outputDir string, yes, outputExplicit bool) error {
+func runGenerate(
+	ctx context.Context, templateDir, outputDir string,
+	yes, noHooks, outputExplicit bool,
+) error {
 	realTemplateDir := templateDir
 
 	if isRemoteRef(templateDir) {
@@ -81,6 +86,10 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, yes, output
 	debugf("generating project to %s", realOutputDir)
 	if err := goplt.Generate(fsys, m, realOutputDir, vars); err != nil {
 		return fmt.Errorf("generate: %w", err)
+	}
+
+	if noHooks {
+		return nil
 	}
 
 	if err := confirmAndRunHooks(ctx, m, realOutputDir, yes); err != nil {

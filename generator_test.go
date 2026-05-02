@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// minimalTemplateFS builds a minimal in-memory template FS with a template.toml.
+// minimalTemplateFS builds a minimal in-memory template FS with a goplt.toml.
 func minimalTemplateFS(files map[string]string) fstest.MapFS {
 	fsys := fstest.MapFS{
-		"template.toml": &fstest.MapFile{Data: []byte(`
+		"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test template"
 
 [variables]
@@ -35,7 +35,7 @@ name = ""
 func loopTemplateFS(loopVarDecl, loopsSection string, files map[string]string) fstest.MapFS {
 	toml := "description = \"test template\"\n\n[variables.name]\nkind = \"input\"\nrequired = true\n" + loopVarDecl + loopsSection
 	fsys := fstest.MapFS{
-		"template.toml": &fstest.MapFile{Data: []byte(toml)},
+		"goplt.toml": &fstest.MapFile{Data: []byte(toml)},
 	}
 	for path, content := range files {
 		fsys[path] = &fstest.MapFile{Data: []byte(content)}
@@ -101,8 +101,8 @@ func TestGenerate(t *testing.T) {
 		out := t.TempDir()
 		require.NoError(t, goplt.Generate(fsys, m, out, map[string]any{"Name": "x"}))
 
-		_, err = os.Stat(filepath.Join(out, "template.toml"))
-		assert.True(t, os.IsNotExist(err), "template.toml must not be copied to output")
+		_, err = os.Stat(filepath.Join(out, "goplt.toml"))
+		assert.True(t, os.IsNotExist(err), "goplt.toml must not be copied to output")
 	})
 
 	t.Run("skips_go_mod", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestGenerate(t *testing.T) {
 
 	t.Run("condition_skips_dir", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 
 [variables]
@@ -173,7 +173,7 @@ with-connect = false
 		// Regression: condition keys containing {{.Name}} were rendered but the FS walk
 		// path was not, so HasPrefix never matched and the condition was silently ignored.
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 
 [variables]
@@ -201,7 +201,7 @@ with-connect = false
 
 	t.Run("condition_key_with_template_var/present_when_true", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 
 [variables]
@@ -244,7 +244,7 @@ with-connect = false
 
 	t.Run("custom_delimiters/substitution", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 delimiters = ["[[", "]]"]
 
@@ -266,7 +266,7 @@ name = ""
 
 	t.Run("custom_delimiters/brace_passthrough", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 delimiters = ["[[", "]]"]
 
@@ -304,7 +304,7 @@ name = ""
 
 	t.Run("custom_delimiters/condition_respected", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 delimiters = ["[[", "]]"]
 
@@ -443,7 +443,7 @@ func TestGenerate_Loop(t *testing.T) {
 
 	t.Run("condition_gates_entire_loop", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 
 [variables.with-internal]
@@ -476,7 +476,7 @@ kind = "stringList"
 
 	t.Run("per_item_condition", func(t *testing.T) {
 		fsys := fstest.MapFS{
-			"template.toml": &fstest.MapFile{Data: []byte(`
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
 
 [variables.packages]

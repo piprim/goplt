@@ -119,7 +119,7 @@ func (g *internalGenerator) walk(path string, d fs.DirEntry, walkErr error) erro
 		return walkErr
 	}
 
-	if path == "." || path == "template.toml" || path == "go.mod" || path == "go.sum" {
+	if path == "." || path == "goplt.toml" || path == "go.mod" || path == "go.sum" {
 		return nil
 	}
 

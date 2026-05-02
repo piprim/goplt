@@ -32,7 +32,7 @@ func newTemplatizeCmd() *cobra.Command {
 		Use:   "templatize",
 		Short: "Convert an existing Go project into a goplt template",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runTemplatize(c, sourceDir, outputDir, name, orgPrefix, description, skip, yes)
+			return runTemplatize(c, &templatizeOptions{sourceDir, outputDir, name, orgPrefix, description, skip, yes})
 		},
 	}
 
@@ -48,18 +48,30 @@ func newTemplatizeCmd() *cobra.Command {
 	return cmd
 }
 
+type templatizeOptions struct {
+	sourceDir, outputDir, name, orgPrefix, description string
+	skip                                               []string
+	yes                                                bool
+}
+
 func runTemplatize(
 	cmd *cobra.Command,
-	sourceDir, outputDir, name, orgPrefix, description string,
-	skip []string,
-	yes bool,
+	options *templatizeOptions,
 ) error {
+	sourceDir := options.sourceDir
+	outputDir := options.outputDir
+	name := options.name
+	orgPrefix := options.orgPrefix
+	description := options.description
+	skip := options.skip
+	yes := options.yes
+
 	if entries, err := os.ReadDir(outputDir); err == nil && len(entries) > 0 {
 		return fmt.Errorf("templatize: output dir %q already exists and is not empty", outputDir)
 	}
 
 	if yes && description == "" {
-		return fmt.Errorf("templatize: --description is required when --yes is set")
+		return errors.New("templatize: --description is required when --yes is set")
 	}
 
 	name, orgPrefix, err := resolveNameAndPrefix(sourceDir, name, orgPrefix)
@@ -128,20 +140,21 @@ func resolveNameAndPrefix(sourceDir, name, orgPrefix string) (string, string, er
 		return name, orgPrefix, nil
 	}
 
+	outName := name
 	if name == "" {
-		name = modulePath[strings.LastIndex(modulePath, "/")+1:]
+		outName = modulePath[strings.LastIndex(modulePath, "/")+1:]
 	}
 
+	outOrgPrefix := orgPrefix
 	if orgPrefix == "" {
 		if idx := strings.LastIndex(modulePath, "/"); idx >= 0 {
-			orgPrefix = modulePath[:idx]
+			outOrgPrefix = modulePath[:idx]
 		}
 	}
 
-	return name, orgPrefix, nil
+	return outName, outOrgPrefix, nil
 }
 
-//nolint:funlen // TUI form builds fields dynamically; splitting would hide the single-form assembly logic
 func collectTemplatizeVars(
 	name, orgPrefix, description string,
 	skip []string,
@@ -168,7 +181,7 @@ func collectTemplatizeVars(
 	}
 
 	// Deduplicate by value; blank values dropped.
-	seen := map[string]struct{}{}
+	seen := make(map[string]struct{})
 	deduped := make([]formEntry, 0, len(entries))
 
 	for _, e := range entries {
@@ -246,10 +259,10 @@ post-generate = ["go mod tidy"]
 		return fmt.Errorf("templatize: mkdir output: %w", err)
 	}
 
-	path := filepath.Join(outputDir, "template.toml")
+	path := filepath.Join(outputDir, "goplt.toml")
 
 	if err := os.WriteFile(path, []byte(content), tmplFilePerm); err != nil {
-		return fmt.Errorf("templatize: write template.toml: %w", err)
+		return fmt.Errorf("templatize: write goplt.toml: %w", err)
 	}
 
 	return nil

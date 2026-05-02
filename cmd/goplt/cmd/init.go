@@ -61,7 +61,7 @@ func runInit(outputDir, domain, complexity string, outputExplicit bool) error {
 
 	m, err := goplt.LoadManifest(subFS)
 	if err != nil {
-		if _, statErr := fs.Stat(subFS, "template.toml"); statErr != nil {
+		if _, statErr := fs.Stat(subFS, "goplt.toml"); statErr != nil {
 			return fmt.Errorf("domain %q not found", domain)
 		}
 

@@ -29,7 +29,7 @@ const (
 	KindText = KindInput
 )
 
-// Variable describes a single template variable from template.toml.
+// Variable describes a single template variable from goplt.toml.
 type Variable struct {
 	Name string // PascalCase
 	Kind VariableKind
@@ -42,12 +42,12 @@ type Variable struct {
 // PostGenHooks is a list of post-generation shell commands.
 type PostGenHooks []string
 
-// Hooks holds the hook commands declared under [hooks] in template.toml.
+// Hooks holds the hook commands declared under [hooks] in goplt.toml.
 type Hooks struct {
 	PostGenHooks PostGenHooks `mapstructure:"post-generate"`
 }
 
-// Manifest holds the parsed content of a template.toml file.
+// Manifest holds the parsed content of a goplt.toml file.
 type Manifest struct {
 	Description string // required one-line summary of what this template generates
 	Variables   []Variable
@@ -93,7 +93,7 @@ func NormalizeKey(s string) string {
 	return b.String()
 }
 
-// rawManifest is the intermediate representation decoded from template.toml.
+// rawManifest is the intermediate representation decoded from goplt.toml.
 type rawManifest struct {
 	Description string              `mapstructure:"description"`
 	Variables   map[string]any      `mapstructure:"variables"`
@@ -108,18 +108,18 @@ type rawHooks struct {
 	PostGenerate []string `mapstructure:"post-generate"`
 }
 
-// LoadManifest reads and parses template.toml from fsys.
+// LoadManifest reads and parses goplt.toml from fsys.
 // Variable names are normalised to PascalCase via NormalizeKey.
 func LoadManifest(fsys fs.FS) (*Manifest, error) {
-	data, err := fs.ReadFile(fsys, "template.toml")
+	data, err := fs.ReadFile(fsys, "goplt.toml")
 	if err != nil {
-		return nil, fmt.Errorf("read template.toml: %w", err)
+		return nil, fmt.Errorf("read goplt.toml: %w", err)
 	}
 
 	var intermediate map[string]any
 
 	if err := toml.Unmarshal(data, &intermediate); err != nil {
-		return nil, fmt.Errorf("parse template.toml: %w", err)
+		return nil, fmt.Errorf("parse goplt.toml: %w", err)
 	}
 
 	var raw rawManifest
@@ -133,11 +133,11 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 	}
 
 	if err := decoder.Decode(intermediate); err != nil {
-		return nil, fmt.Errorf("decode template.toml: %w", err)
+		return nil, fmt.Errorf("decode goplt.toml: %w", err)
 	}
 
 	if raw.Description == "" {
-		return nil, errors.New("template.toml: missing required field \"description\"")
+		return nil, errors.New("goplt.toml: missing required field \"description\"")
 	}
 
 	m := &Manifest{

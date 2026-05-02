@@ -56,7 +56,7 @@ func TestRunInit_FileSet(t *testing.T) {
 			"go.mod.tmpl",
 			"README.md.tmpl",
 			".gitignore",
-			"template.toml",
+			"goplt.toml",
 		}
 		for _, f := range present {
 			_, err := os.Stat(filepath.Join(out, f))
@@ -89,7 +89,7 @@ func TestRunInit_FileSet(t *testing.T) {
 			".golangci.yml",
 			"README.md.tmpl",
 			".gitignore",
-			"template.toml",
+			"goplt.toml",
 		}
 		for _, f := range present {
 			_, err := os.Stat(filepath.Join(out, f))
@@ -116,7 +116,7 @@ func TestRunInit_FileSet(t *testing.T) {
 			"go.mod.tmpl",
 			".golangci.yml",
 			"Makefile.tmpl",
-			"template.toml",
+			"goplt.toml",
 		}
 		for _, f := range present {
 			_, err := os.Stat(filepath.Join(out, f))
@@ -169,7 +169,7 @@ func TestRunInit_TemplateToml(t *testing.T) {
 	t.Run("present_and_contains_variables_section", func(t *testing.T) {
 		out := runInitWithVars(t, defaultInitVars("minimal", "make"))
 
-		content, err := os.ReadFile(filepath.Join(out, "template.toml"))
+		content, err := os.ReadFile(filepath.Join(out, "goplt.toml"))
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "[variables]")
 	})
@@ -229,7 +229,7 @@ func TestGoLibrarySimple_EndToEnd(t *testing.T) {
 			// Step 1: generate the template skeleton (goplt init output).
 			skeletonDir := runInitWithVars(t, defaultInitVars(tc.complexity, tc.toolchain))
 
-			// Step 2: load the skeleton's template.toml and collect defaults.
+			// Step 2: load the skeleton's goplt.toml and collect defaults.
 			skeletonFS := os.DirFS(skeletonDir)
 			skeletonM, err := goplt.LoadManifest(skeletonFS)
 			require.NoError(t, err)

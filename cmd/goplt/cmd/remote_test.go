@@ -79,6 +79,6 @@ func TestResolveRemote_real(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, dir)
 
-	_, err = os.Stat(filepath.Join(dir, "template.toml"))
-	assert.NoError(t, err, "template.toml must exist in the resolved module directory")
+	_, err = os.Stat(filepath.Join(dir, "goplt.toml"))
+	assert.NoError(t, err, "goplt.toml must exist in the resolved module directory")
 }

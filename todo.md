@@ -6,9 +6,9 @@
 
 ## CLI gaps
 
-- [ ] `goplt list` — list locally cached remote templates (from `$GOMODCACHE`)
-- [ ] `--no-hooks` flag on `generate` — skip post-generation hooks without editing the manifest
-- [ ] `--keep` flag on `test` — retain the generated output dir for debugging instead of cleaning up
+- [x] `goplt list` — list locally cached remote templates (from `$GOMODCACHE`)
+- [x] `--no-hooks` flag on `generate` — skip post-generation hooks without editing the manifest
+- [x] `--keep` flag on `test` — retain the generated output dir for debugging instead of cleaning up
 
 ## Variable system
 
@@ -28,3 +28,7 @@
 - [ ] `go-library-multi` domain — library with multiple internal packages (`internal/auth/`, `internal/hash/`, etc.)
 - [ ] `go-cli` domain — meta-template skeleton for CLI tools (Cobra, flags, version command)
 - [ ] `go-service` domain — meta-template skeleton for HTTP/gRPC services
+
+## Architectural Limitations
+
+- [ ] Nested loops — `[loops]` currently only supports one variable per entry; add support for nested loops

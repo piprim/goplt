@@ -150,7 +150,7 @@ func TestRunGenerate(t *testing.T) {
 			t.Skip("skipping network test in short mode")
 		}
 
-		err := runGenerate(context.Background(), "example.com/definitely/doesnotexist@v0.0.1", t.TempDir(), false, false)
+		err := runGenerate(context.Background(), "example.com/definitely/doesnotexist@v0.0.1", t.TempDir(), false, false, false)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resolve remote template")
 	})

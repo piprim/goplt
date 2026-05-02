@@ -22,28 +22,30 @@ import (
 
 func newTestCmd() *cobra.Command {
 	var templateDir, image string
-	var ask bool
+	var ask, keep bool
 
 	cmd := &cobra.Command{
 		Use:   "test",
 		Short: "Test a template by generating it and running go build + go test in a Docker sandbox",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runTest(c.Context(), templateDir, image, ask)
+			return runTest(c.Context(), templateDir, image, ask, keep)
 		},
 	}
 
 	wd, _ := os.Getwd()
 	cmd.Flags().StringVarP(&templateDir, "template", "t", wd,
-		"Template directory containing template.toml (default: current directory)")
+		"Template directory containing goplt.toml (default: current directory)")
 	cmd.Flags().StringVar(&image, "image", "golang:latest",
 		"Docker image to use for the sandbox")
 	cmd.Flags().BoolVar(&ask, "ask", false,
 		"Collect variable values interactively instead of using defaults")
+	cmd.Flags().BoolVar(&keep, "keep", false,
+		"Retain the generated output directory for debugging instead of cleaning it up")
 
 	return cmd
 }
 
-func runTest(ctx context.Context, templateDir, image string, ask bool) error {
+func runTest(ctx context.Context, templateDir, image string, ask, keep bool) error {
 	// 1. Verify docker is available before doing any work.
 	if _, err := exec.LookPath("docker"); err != nil {
 		return errors.New("docker not found — install Docker to use goplt test")
@@ -83,7 +85,12 @@ func runTest(ctx context.Context, templateDir, image string, ask bool) error {
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+
+	if keep {
+		fmt.Fprintf(os.Stderr, "Keeping generated test output in %s\n", tmpDir)
+	} else {
+		defer os.RemoveAll(tmpDir)
+	}
 
 	if err := goplt.Generate(fsys, m, tmpDir, vars); err != nil {
 		return fmt.Errorf("generate: %w", err)

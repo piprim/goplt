@@ -2,7 +2,7 @@
 
 Cookiecutter-style project scaffolding for Go. Renders a directory tree of
 [`text/template`](https://pkg.go.dev/text/template) files driven by a
-`template.toml` manifest, collecting variable values interactively via a TUI,
+`goplt.toml` manifest, collecting variable values interactively via a TUI,
 then running post-generation shell hooks.
 
 ---
@@ -40,10 +40,13 @@ goplt test --template ./my-template
 
 # Convert an existing Go project into a template
 goplt templatize --output ../my-template
+
+# List locally cached remote templates
+goplt list
 ```
 
 `goplt generate` will open an interactive form, collect all variable values declared in
-`template.toml`, render the template tree, and run any post-generation hooks.
+`goplt.toml`, render the template tree, and run any post-generation hooks.
 
 ---
 
@@ -64,7 +67,7 @@ goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra@v1.0.0
 goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra@main
 ```
 
-The template module must contain a `template.toml` at its root.
+The template module must contain a `goplt.toml` at its root.
 Private modules are supported via the standard Go environment variables
 (`GOPRIVATE`, `GONOSUMDB`, `GOFLAGS`, `GOAUTH`).
 
@@ -81,12 +84,12 @@ community templates maintained alongside `goplt`:
 
 ## Template directory layout
 
-A template directory contains a `template.toml` manifest and any number of
+A template directory contains a `goplt.toml` manifest and any number of
 files (and subdirectories) to be rendered:
 
 ```
 my-template/
-  template.toml                  ← manifest (required)
+  goplt.toml                  ← manifest (required)
   go.mod.tmpl                    ← .tmpl extension is stripped in output
   main.go                        ← rendered as-is (template syntax still applied)
   cmd/{{.Name}}/main.go          ← path itself is a template
@@ -103,13 +106,13 @@ The `.tmpl` extension is stripped from the output file name:
 - `go.mod.tmpl` → `go.mod`
 - `Makefile.tmpl` → `Makefile`
 
-### Skipping template.toml
+### Skipping goplt.toml
 
-`template.toml` is never copied to the output directory.
+`goplt.toml` is never copied to the output directory.
 
 ---
 
-## template.toml reference
+## goplt.toml reference
 
 ```toml
 # Required: one-line summary of what this template generates.
@@ -181,9 +184,9 @@ Flat syntax is shorthand for the three original kinds; `stringList` requires the
 ### Variable name normalisation
 
 Variable names are normalised to **PascalCase** for use in templates.
-You can write them in any style in `template.toml`:
+You can write them in any style in `goplt.toml`:
 
-| In template.toml | In templates |
+| In goplt.toml | In templates |
 |---|---|
 | `with-connect` | `{{.WithConnect}}` |
 | `with_connect` | `{{.WithConnect}}` |
@@ -344,7 +347,7 @@ goplt test --template ./my-template --ask
 ```
 
 The generated files are piped as a tar archive to the container's stdin — no
-volume mounts are needed. Post-generation hooks declared in `template.toml` run
+volume mounts are needed. Post-generation hooks declared in `goplt.toml` run
 inside the container before `go build` and `go test`.
 
 **Default variable values used during test:**
@@ -364,7 +367,7 @@ network access to download Go modules.
 ## Scaffolding templates
 
 `goplt init` scaffolds a new template directory for template authors. It generates a
-ready-to-use template skeleton — with a `template.toml`, Go source stubs, and optional
+ready-to-use template skeleton — with a `goplt.toml`, Go source stubs, and optional
 tooling files — using one of the built-in meta-templates.
 
 ```bash
@@ -390,7 +393,7 @@ A **domain** selects which meta-template to scaffold from:
 
 | Level | Files generated |
 |---|---|
-| `minimal` | `<Name>.go`, `<Name>_test.go`, `go.mod`, `README.md`, `.gitignore`, `template.toml` |
+| `minimal` | `<Name>.go`, `<Name>_test.go`, `go.mod`, `README.md`, `.gitignore`, `goplt.toml` |
 | `standard` | Adds `.golangci.yml` and an example test file (`<Name>_example_test.go`) |
 | `advanced` | Adds an `internal/<Name>/` package and a `Makefile` or `mise.toml` (toolchain-dependent) |
 
@@ -427,12 +430,32 @@ goplt generate [--template <path|module>] [--output <dir>] [--yes]
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--template` | `-t` | current directory | Local path or Go module reference (`host/owner/repo[/subpath][@version]`) containing `template.toml` |
-| `--output` | `-o` | current directory | Directory where files are written; when set, overrides `target-dir` declared in `template.toml` |
+| `--template` | `-t` | current directory | Local path or Go module reference (`host/owner/repo[/subpath][@version]`) containing `goplt.toml` |
+| `--output` | `-o` | current directory | Directory where files are written; when set, overrides `target-dir` declared in `goplt.toml` |
 | `--yes` | `-y` | `false` | Skip the hook confirmation prompt |
 
 **Safety:** the output directory cannot be the same as, or nested inside, the
 template directory (and vice versa). `goplt` checks this before doing anything.
+
+### `goplt list`
+
+Lists all remote templates that have been cached locally in `$GOMODCACHE`. For
+each module the latest version is shown first, followed by any older pinned
+versions in descending order.
+
+```
+goplt list
+```
+
+No flags. Example output:
+
+```
+github.com/piprim/goplt-tmpl/cli-cobra@latest
+  github.com/piprim/goplt-tmpl/cli-cobra@v1.0.0
+github.com/acme/my-template@latest
+```
+
+Prints `No remote templates cached locally.` when the cache is empty.
 
 ### `goplt test`
 
@@ -442,7 +465,7 @@ goplt test [--template <path|module>] [--image <docker-image>] [--ask]
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--template` | `-t` | current directory | Local path or Go module reference containing `template.toml` |
+| `--template` | `-t` | current directory | Local path or Go module reference containing `goplt.toml` |
 | `--image` | | `golang:latest` | Docker image to use for the build/test sandbox |
 | `--ask` | | `false` | Collect variable values interactively instead of using defaults |
 
@@ -455,7 +478,7 @@ Converts an existing Go project into a reusable goplt template.
 Reads `go.mod` in the source directory to auto-detect the project name and org
 prefix. Opens a TUI to confirm the description, values, and which case forms to
 substitute. Copies the project tree to `--output`, replacing all confirmed values
-with template placeholders, and writes a ready-to-use `template.toml`.
+with template placeholders, and writes a ready-to-use `goplt.toml`.
 
 ```bash
 # Automatic — reads go.mod, opens TUI
