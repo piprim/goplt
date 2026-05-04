@@ -177,9 +177,11 @@ post-generate = [
 | `"bool"` | `true` / `false` | Yes/No confirm | |
 | `"stringChoice"` | `["A", "B", "C"]` | Dropdown | First item = selected by default |
 | `"stringList"` | *(sub-table only)* | Comma-separated input | Value is `[]string` in templates |
+| `"int"` | `8080` | Integer input | `min`, `max` optional; `required = true` rejects empty |
+| `"intChoice"` | `[8080, 8443]` | Dropdown | First item selected by default |
 
 Both syntaxes are equivalent — the sub-table form adds `description`, explicit `kind`, and `required`.
-Flat syntax is shorthand for the three original kinds; `stringList` requires the sub-table form.
+Flat syntax is shorthand; `stringList` and the `min`/`max` bounds on `int` require the sub-table form.
 
 ### Variable name normalisation
 

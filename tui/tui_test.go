@@ -15,7 +15,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "Name", Kind: goplt.KindText, Required: true}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "Name", b.name)
 	})
@@ -24,7 +24,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "Name", Kind: goplt.KindText, Value: "alice"}
 		vars := map[string]any{"Name": "alice"}
 
-		_, b := buildField(v, vars)
+		_, b := buildField(&v, vars)
 		b.apply()
 		assert.Equal(t, "alice", vars["Name"])
 	})
@@ -33,7 +33,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "Name", Kind: goplt.KindText, Required: true, Description: "The module name"}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "Name", b.name)
 	})
@@ -42,7 +42,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "WithDocker", Kind: goplt.KindBool, Value: true}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "WithDocker", b.name)
 	})
@@ -51,7 +51,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "WithDocker", Kind: goplt.KindBool, Value: true}
 		vars := map[string]any{"WithDocker": true}
 
-		_, b := buildField(v, vars)
+		_, b := buildField(&v, vars)
 		b.apply()
 		val, ok := vars["WithDocker"].(bool)
 		require.True(t, ok)
@@ -62,7 +62,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "WithDocker", Kind: goplt.KindBool, Value: true, Description: "Add a Dockerfile"}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "WithDocker", b.name)
 	})
@@ -71,7 +71,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "License", Kind: goplt.KindStringChoice, Value: []string{"MIT", "Apache-2.0"}}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "License", b.name)
 	})
@@ -80,7 +80,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "License", Kind: goplt.KindStringChoice, Value: []string{"MIT", "Apache-2.0"}}
 		vars := map[string]any{"License": "MIT"}
 
-		_, b := buildField(v, vars)
+		_, b := buildField(&v, vars)
 		b.apply()
 		assert.Equal(t, "MIT", vars["License"])
 	})
@@ -89,7 +89,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "License", Kind: goplt.KindStringChoice, Value: []string{"MIT", "Apache-2.0"}, Description: "License to apply"}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "License", b.name)
 	})
@@ -98,7 +98,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "Packages", Kind: goplt.KindStringList, Required: true}
 		vars := map[string]any{}
 
-		field, b := buildField(v, vars)
+		field, b := buildField(&v, vars)
 		require.NotNil(t, field)
 		assert.Equal(t, "Packages", b.name)
 	})
@@ -107,7 +107,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "Packages", Kind: goplt.KindStringList}
 		vars := map[string]any{"Packages": []string{}}
 
-		_, b := buildField(v, vars)
+		_, b := buildField(&v, vars)
 		b.apply()
 		_, ok := vars["Packages"].([]string)
 		require.True(t, ok)
@@ -122,7 +122,7 @@ func TestBuildField(t *testing.T) {
 		}
 		vars := map[string]any{}
 
-		field, _ := buildField(v, vars)
+		field, _ := buildField(&v, vars)
 		require.NotNil(t, field)
 	})
 
@@ -130,7 +130,7 @@ func TestBuildField(t *testing.T) {
 		v := goplt.Variable{Name: "X", Kind: goplt.VariableKind("unknown")}
 		vars := map[string]any{}
 
-		field, _ := buildField(v, vars)
+		field, _ := buildField(&v, vars)
 		assert.Nil(t, field)
 	})
 }
@@ -211,5 +211,119 @@ func TestInitVars(t *testing.T) {
 		vars := initVars(m)
 		assert.Equal(t, "mylib", vars["Name"])
 		assert.Equal(t, true, vars["WithDocker"])
+	})
+}
+
+func TestValidateIntInput(t *testing.T) {
+	t.Run("required_empty_returns_error", func(t *testing.T) {
+		fn := validateIntInput("Port", true, nil, nil)
+		err := fn("")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "required")
+	})
+
+	t.Run("not_required_empty_returns_nil", func(t *testing.T) {
+		fn := validateIntInput("Port", false, nil, nil)
+		assert.NoError(t, fn(""))
+	})
+
+	t.Run("non_integer_returns_error", func(t *testing.T) {
+		fn := validateIntInput("Port", false, nil, nil)
+		err := fn("abc")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "integer")
+	})
+
+	t.Run("below_min_returns_error", func(t *testing.T) {
+		minVal := 1
+		fn := validateIntInput("Port", false, &minVal, nil)
+		err := fn("0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "≥")
+	})
+
+	t.Run("above_max_returns_error", func(t *testing.T) {
+		maxVal := 65535
+		fn := validateIntInput("Port", false, nil, &maxVal)
+		err := fn("65536")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "≤")
+	})
+
+	t.Run("valid_in_bounds", func(t *testing.T) {
+		minVal, maxVal := 1, 65535
+		fn := validateIntInput("Port", false, &minVal, &maxVal)
+		assert.NoError(t, fn("8080"))
+	})
+}
+
+func TestBuildField_IntKinds(t *testing.T) {
+	t.Run("kind_int/returns_non_nil_field", func(t *testing.T) {
+		minVal, maxVal := 1, 65535
+		v := goplt.Variable{
+			Name:  "Port",
+			Kind:  goplt.KindInt,
+			Value: 8080,
+			Min:   &minVal,
+			Max:   &maxVal,
+		}
+		vars := map[string]any{}
+
+		field, b := buildField(&v, vars)
+		require.NotNil(t, field)
+		assert.Equal(t, "Port", b.name)
+	})
+
+	t.Run("kind_int/apply_writes_int", func(t *testing.T) {
+		v := goplt.Variable{Name: "Port", Kind: goplt.KindInt, Value: 8080}
+		vars := map[string]any{"Port": 8080}
+
+		_, b := buildField(&v, vars)
+		b.apply()
+		val, ok := vars["Port"].(int)
+		require.True(t, ok)
+		assert.Equal(t, 8080, val)
+	})
+
+	t.Run("kind_int/with_description", func(t *testing.T) {
+		v := goplt.Variable{Name: "Port", Kind: goplt.KindInt, Value: 8080, Description: "Server port"}
+		vars := map[string]any{}
+
+		field, b := buildField(&v, vars)
+		require.NotNil(t, field)
+		assert.Equal(t, "Port", b.name)
+	})
+
+	t.Run("kind_int_choice/returns_non_nil_field", func(t *testing.T) {
+		v := goplt.Variable{
+			Name:  "Workers",
+			Kind:  goplt.KindIntChoice,
+			Value: []int{1, 2, 4, 8},
+		}
+		vars := map[string]any{}
+
+		field, b := buildField(&v, vars)
+		require.NotNil(t, field)
+		assert.Equal(t, "Workers", b.name)
+	})
+
+	t.Run("kind_int_choice/apply_writes_first_item", func(t *testing.T) {
+		v := goplt.Variable{Name: "Workers", Kind: goplt.KindIntChoice, Value: []int{1, 2, 4, 8}}
+		vars := map[string]any{"Workers": 1}
+
+		_, b := buildField(&v, vars)
+		b.apply()
+		val, ok := vars["Workers"].(int)
+		require.True(t, ok)
+		assert.Equal(t, 1, val)
+	})
+
+	t.Run("kind_int_choice/with_description", func(t *testing.T) {
+		v := goplt.Variable{Name: "Workers", Kind: goplt.KindIntChoice, Value: []int{1, 2}, Description: "Worker count"}
+		vars := map[string]any{}
+
+		field, b := buildField(&v, vars)
+		require.NotNil(t, field)
+		assert.Equal(t, "Workers", b.name)
 	})
 }

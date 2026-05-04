@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -49,7 +50,7 @@ func CollectVars(m *goplt.Manifest) (map[string]any, error) {
 	var fields []huh.Field
 
 	for i := range m.Variables {
-		f, b := buildField(m.Variables[i], vars)
+		f, b := buildField(&m.Variables[i], vars)
 		if f != nil {
 			fields = append(fields, f)
 			bindings = append(bindings, b)
@@ -88,7 +89,7 @@ type binding struct {
 }
 
 // buildField constructs a huh.Field and its binding for a single manifest variable.
-func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+func buildField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
 	switch v.Kind {
 	case goplt.KindText:
 		return buildInputField(v, vars)
@@ -98,12 +99,16 @@ func buildField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
 		return buildStringChoiceField(v, vars)
 	case goplt.KindStringList:
 		return buildStringListField(v, vars)
+	case goplt.KindInt:
+		return buildIntField(v, vars)
+	case goplt.KindIntChoice:
+		return buildIntChoiceField(v, vars)
 	default:
 		return nil, binding{}
 	}
 }
 
-func buildInputField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+func buildInputField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
 	name := v.Name
 	val := ""
 	if s, ok := v.Value.(string); ok {
@@ -127,7 +132,7 @@ func buildInputField(v goplt.Variable, vars map[string]any) (huh.Field, binding)
 	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 }
 
-func buildBoolField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+func buildBoolField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
 	name := v.Name
 	val := false
 	if b, ok := v.Value.(bool); ok {
@@ -142,7 +147,7 @@ func buildBoolField(v goplt.Variable, vars map[string]any) (huh.Field, binding) 
 	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 }
 
-func buildStringChoiceField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+func buildStringChoiceField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
 	name := v.Name
 	choices, _ := v.Value.([]string)
 	opts := make([]huh.Option[string], len(choices))
@@ -162,7 +167,7 @@ func buildStringChoiceField(v goplt.Variable, vars map[string]any) (huh.Field, b
 	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 }
 
-func buildStringListField(v goplt.Variable, vars map[string]any) (huh.Field, binding) {
+func buildStringListField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
 	name := v.Name
 	suggestions, _ := v.Value.([]string)
 	initial := strings.Join(suggestions, ", ")
@@ -182,6 +187,77 @@ func buildStringListField(v goplt.Variable, vars map[string]any) (huh.Field, bin
 	}
 
 	return field, binding{name: name, apply: func() { vars[name] = parseListInput(*ptr) }}
+}
+
+// validateIntInput returns a huh Validate function for integer text input.
+func validateIntInput(name string, required bool, minBound, maxBound *int) func(string) error {
+	return func(s string) error {
+		if s == "" {
+			if required {
+				return fmt.Errorf("%s is required", name)
+			}
+
+			return nil
+		}
+
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("%s must be an integer", name)
+		}
+
+		if minBound != nil && n < *minBound {
+			return fmt.Errorf("%s must be ≥ %d", name, *minBound)
+		}
+
+		if maxBound != nil && n > *maxBound {
+			return fmt.Errorf("%s must be ≤ %d", name, *maxBound)
+		}
+
+		return nil
+	}
+}
+
+func buildIntField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	defaultVal := 0
+	if n, ok := v.Value.(int); ok {
+		defaultVal = n
+	}
+	val := strconv.Itoa(defaultVal)
+	ptr := &val
+	field := huh.NewInput().
+		Title(name).
+		Value(ptr).
+		Validate(validateIntInput(name, v.Required, v.Min, v.Max))
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() {
+		if n, err := strconv.Atoi(*ptr); err == nil {
+			vars[name] = n
+		}
+	}}
+}
+
+func buildIntChoiceField(v *goplt.Variable, vars map[string]any) (huh.Field, binding) {
+	name := v.Name
+	choices, _ := v.Value.([]int)
+	opts := make([]huh.Option[int], len(choices))
+	for j, c := range choices {
+		opts[j] = huh.NewOption(strconv.Itoa(c), c)
+	}
+	val := 0
+	if len(choices) > 0 {
+		val = choices[0]
+	}
+	ptr := &val
+	field := huh.NewSelect[int]().Title(name).Options(opts...).Value(ptr)
+	if v.Description != "" {
+		field = field.Description(v.Description)
+	}
+
+	return field, binding{name: name, apply: func() { vars[name] = *ptr }}
 }
 
 // parseListInput splits a comma-separated string into a trimmed, non-empty slice.

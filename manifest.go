@@ -23,6 +23,8 @@ const (
 	KindBool         VariableKind = "bool"         // yes/no confirm
 	KindStringChoice VariableKind = "stringChoice" // select from list; first item is selected by default
 	KindStringList   VariableKind = "stringList"   // comma-separated list of strings
+	KindInt          VariableKind = "int"          // free integer input
+	KindIntChoice    VariableKind = "intChoice"    // select from a list of integers; first item is selected by default
 
 	// KindText is an alias for KindInput kept for backward compatibility with
 	// library consumers that reference the old constant name.
@@ -33,10 +35,12 @@ const (
 type Variable struct {
 	Name string // PascalCase
 	Kind VariableKind
-	// string (KindInput) | bool (KindBool) | []string
+	// Typed value: string, bool, []string, int, or []int — depends on Kind.
 	Value       any
-	Required    bool   // KindInput and KindListString: validation fails when user submits empty value
+	Required    bool   // KindInput and KindStringList: validation fails when user submits empty value
 	Description string // optional; shown as subtitle in the TUI
+	Min         *int   // KindInt only: inclusive lower bound (nil = no constraint)
+	Max         *int   // KindInt only: inclusive upper bound (nil = no constraint)
 }
 
 // PostGenHooks is a list of post-generation shell commands.
@@ -181,11 +185,41 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 		return strings.Compare(a.Name, b.Name)
 	})
 
+	if err := validateIntBounds(m.Variables); err != nil {
+		return nil, err
+	}
+
 	if err := validateLoops(m.Loops, m.Variables, m.Delimiters); err != nil {
 		return nil, err
 	}
 
 	return m, nil
+}
+
+// validateIntBounds checks that KindInt variables have consistent min/max and
+// that the default value falls within declared bounds.
+func validateIntBounds(vars []Variable) error {
+	for _, v := range vars {
+		if v.Kind != KindInt {
+			continue
+		}
+
+		intVal, _ := v.Value.(int)
+
+		if v.Min != nil && v.Max != nil && *v.Min > *v.Max {
+			return fmt.Errorf("variable %q: min (%d) must be ≤ max (%d)", v.Name, *v.Min, *v.Max)
+		}
+
+		if v.Min != nil && intVal < *v.Min {
+			return fmt.Errorf("variable %q: default value (%d) is below min (%d)", v.Name, intVal, *v.Min)
+		}
+
+		if v.Max != nil && intVal > *v.Max {
+			return fmt.Errorf("variable %q: default value (%d) exceeds max (%d)", v.Name, intVal, *v.Max)
+		}
+	}
+
+	return nil
 }
 
 func parseVariable(rawName string, val any) (Variable, error) {
@@ -203,13 +237,66 @@ func parseVariable(rawName string, val any) (Variable, error) {
 		v.Kind = KindBool
 		v.Value = tv
 
+	case int64:
+		v.Kind = KindInt
+		v.Value = int(tv)
+
 	case []any:
+		return parseAnySlice(rawName, tv)
+
+	case map[string]any:
+		parsed, err := parseSubTableVariable(rawName, tv)
+		if err != nil {
+			return Variable{}, err
+		}
+
+		v = parsed
+
+	default:
+		return Variable{}, fmt.Errorf(
+			"variable %q: unsupported type %T (use string, bool, integer, []string, []integer, or sub-table with kind)",
+			rawName, val,
+		)
+	}
+
+	return v, nil
+}
+
+// parseAnySlice handles the []any case in parseVariable: detects whether the
+// slice holds integers (→ KindIntChoice) or strings (→ KindStringChoice).
+func parseAnySlice(rawName string, tv []any) (Variable, error) {
+	v := Variable{Name: NormalizeKey(rawName)}
+
+	if len(tv) == 0 {
+		v.Kind = KindStringChoice
+		v.Value = []string{}
+
+		return v, nil
+	}
+
+	switch tv[0].(type) {
+	case int64:
+		choices := make([]int, len(tv))
+
+		for i, c := range tv {
+			n, ok := c.(int64)
+			if !ok {
+				return Variable{}, fmt.Errorf("variable %q: mixed-type array; all elements must be integers", rawName)
+			}
+
+			choices[i] = int(n)
+		}
+
+		v.Kind = KindIntChoice
+		v.Value = choices
+
+	case string:
 		choices := make([]string, len(tv))
 
 		for i, c := range tv {
 			s, ok := c.(string)
 			if !ok {
-				return Variable{}, fmt.Errorf("variable %q: choice values must be strings, got %T", rawName, c)
+				return Variable{}, fmt.Errorf("variable %q: mixed-type array; all elements must be strings", rawName)
 			}
 
 			choices[i] = s
@@ -218,16 +305,8 @@ func parseVariable(rawName string, val any) (Variable, error) {
 		v.Kind = KindStringChoice
 		v.Value = choices
 
-	case map[string]any:
-		parsed, err := parseSubTableVariable(rawName, tv)
-		if err != nil {
-			return Variable{}, err
-		}
-		v = parsed
-
 	default:
-		format := "variable %q: unsupported type %T (use string, bool, []string, or sub-table with kind)"
-		return Variable{}, fmt.Errorf(format, rawName, val)
+		return Variable{}, fmt.Errorf("variable %q: choice values must be strings or integers, got %T", rawName, tv[0])
 	}
 
 	return v, nil
@@ -268,24 +347,15 @@ func stringsFromAnySlice(rawSlice []any) []string {
 // parseSubTableVariable handles the map[string]any case in parseVariable:
 // both the new explicit-kind syntax and the legacy "default" syntax.
 func parseSubTableVariable(rawName string, tv map[string]any) (Variable, error) {
-	v := Variable{Name: NormalizeKey(rawName)}
+	var v Variable
 
 	if kindStr, hasKind := tv["kind"].(string); hasKind {
-		// New explicit-kind syntax: kind + value + required.
-		v.Kind = VariableKind(kindStr)
-		v.Required, _ = tv["required"].(bool)
-
-		switch v.Kind {
-		case KindInput:
-			v.Value, _ = tv["value"].(string)
-		case KindBool:
-			v.Value, _ = tv["value"].(bool)
-		case KindStringChoice, KindStringList:
-			rawSlice, _ := tv["value"].([]any)
-			v.Value = stringsFromAnySlice(rawSlice)
-		default:
-			return Variable{}, fmt.Errorf("variable %q: unknown kind %q", rawName, kindStr)
+		parsed, err := parseSubTableByKind(rawName, kindStr, tv)
+		if err != nil {
+			return Variable{}, err
 		}
+
+		v = parsed
 	} else {
 		// Old "default" syntax: map to new fields.
 		defaultVal, ok := tv["default"]
@@ -307,6 +377,48 @@ func parseSubTableVariable(rawName string, tv map[string]any) (Variable, error) 
 
 	if desc, ok := tv["description"].(string); ok {
 		v.Description = desc
+	}
+
+	return v, nil
+}
+
+// parseSubTableByKind parses a sub-table variable when an explicit kind= key is present.
+func parseSubTableByKind(rawName, kindStr string, tv map[string]any) (Variable, error) {
+	v := Variable{Name: NormalizeKey(rawName)}
+	v.Kind = VariableKind(kindStr)
+	v.Required, _ = tv["required"].(bool)
+
+	switch v.Kind {
+	case KindInput:
+		v.Value, _ = tv["value"].(string)
+	case KindBool:
+		v.Value, _ = tv["value"].(bool)
+	case KindStringChoice, KindStringList:
+		rawSlice, _ := tv["value"].([]any)
+		v.Value = stringsFromAnySlice(rawSlice)
+	case KindInt:
+		if n, ok := tv["value"].(int64); ok {
+			v.Value = int(n)
+		} else {
+			v.Value = 0
+		}
+		if minVal, ok := tv["min"].(int64); ok {
+			v.Min = new(int(minVal))
+		}
+		if maxVal, ok := tv["max"].(int64); ok {
+			v.Max = new(int(maxVal))
+		}
+	case KindIntChoice:
+		rawSlice, _ := tv["value"].([]any)
+		choices := make([]int, 0, len(rawSlice))
+		for _, c := range rawSlice {
+			if n, ok := c.(int64); ok {
+				choices = append(choices, int(n))
+			}
+		}
+		v.Value = choices
+	default:
+		return Variable{}, fmt.Errorf("variable %q: unknown kind %q", rawName, kindStr)
 	}
 
 	return v, nil

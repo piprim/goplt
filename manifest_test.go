@@ -79,13 +79,227 @@ func TestLoadManifest_Errors(t *testing.T) {
 description = "test"
 
 [variables]
-count = 42
+ratio = 3.14
 `)},
 		}
 
 		_, err := goplt.LoadManifest(fsys)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "count")
+		assert.Contains(t, err.Error(), "ratio")
+	})
+}
+
+func TestLoadManifest_IntKinds(t *testing.T) {
+	t.Run("flat_int", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables]
+port = 8080
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		require.Len(t, m.Variables, 1)
+		v := m.Variables[0]
+		assert.Equal(t, goplt.KindInt, v.Kind)
+		assert.Equal(t, 8080, v.Value)
+		assert.False(t, v.Required)
+	})
+
+	t.Run("flat_int_array", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables]
+port = [8080, 8443]
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		require.Len(t, m.Variables, 1)
+		v := m.Variables[0]
+		assert.Equal(t, goplt.KindIntChoice, v.Kind)
+		assert.Equal(t, []int{8080, 8443}, v.Value)
+	})
+
+	t.Run("mixed_int_string_array", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables]
+port = [8080, "http"]
+`)},
+		}
+
+		_, err := goplt.LoadManifest(fsys)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "port")
+	})
+
+	t.Run("subtable_int_full", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.port]
+kind        = "int"
+value       = 8080
+min         = 1
+max         = 65535
+required    = true
+description = "TCP port"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		require.Len(t, m.Variables, 1)
+		v := m.Variables[0]
+		assert.Equal(t, goplt.KindInt, v.Kind)
+		assert.Equal(t, 8080, v.Value)
+		assert.True(t, v.Required)
+		assert.Equal(t, "TCP port", v.Description)
+		require.NotNil(t, v.Min)
+		assert.Equal(t, 1, *v.Min)
+		require.NotNil(t, v.Max)
+		assert.Equal(t, 65535, *v.Max)
+	})
+
+	t.Run("subtable_int_no_bounds", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.timeout]
+kind  = "int"
+value = 30
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		v := m.Variables[0]
+		assert.Equal(t, goplt.KindInt, v.Kind)
+		assert.Equal(t, 30, v.Value)
+		assert.Nil(t, v.Min)
+		assert.Nil(t, v.Max)
+	})
+
+	t.Run("subtable_intchoice", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.workers]
+kind        = "intChoice"
+value       = [1, 2, 4, 8]
+description = "Number of worker goroutines"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		require.Len(t, m.Variables, 1)
+		v := m.Variables[0]
+		assert.Equal(t, goplt.KindIntChoice, v.Kind)
+		assert.Equal(t, []int{1, 2, 4, 8}, v.Value)
+		assert.Equal(t, "Number of worker goroutines", v.Description)
+	})
+}
+
+func TestLoadManifest_IntConstraints(t *testing.T) {
+	t.Run("min_greater_than_max", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.port]
+kind  = "int"
+value = 8080
+min   = 9000
+max   = 1000
+`)},
+		}
+
+		_, err := goplt.LoadManifest(fsys)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "min")
+		assert.Contains(t, err.Error(), "max")
+	})
+
+	t.Run("default_below_min", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.port]
+kind  = "int"
+value = 0
+min   = 1
+`)},
+		}
+
+		_, err := goplt.LoadManifest(fsys)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "below min")
+	})
+
+	t.Run("default_above_max", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.port]
+kind  = "int"
+value = 99999
+max   = 65535
+`)},
+		}
+
+		_, err := goplt.LoadManifest(fsys)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds max")
+	})
+
+	t.Run("valid_bounds", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.port]
+kind  = "int"
+value = 8080
+min   = 1
+max   = 65535
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.Len(t, m.Variables, 1)
+	})
+
+	t.Run("only_min", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+
+[variables.count]
+kind  = "int"
+value = 5
+min   = 1
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.Len(t, m.Variables, 1)
 	})
 }
 
