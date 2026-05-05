@@ -847,3 +847,59 @@ kind = "stringList"
 		assert.Equal(t, []string{"MyPackages"}, m.Loops["internal/{{.item}}/"])
 	})
 }
+
+func TestLoadManifest_Tags(t *testing.T) {
+	t.Run("parsed_correctly", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+tags = ["go", "cli"]
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"go", "cli"}, m.Tags)
+	})
+
+	t.Run("absent_returns_empty_slice", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.NotNil(t, m.Tags)
+		assert.Empty(t, m.Tags)
+	})
+}
+
+func TestLoadManifest_Authors(t *testing.T) {
+	t.Run("parsed_correctly", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+authors = ["Alice", "Bob"]
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Alice", "Bob"}, m.Authors)
+	})
+
+	t.Run("absent_returns_empty_slice", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.NotNil(t, m.Authors)
+		assert.Empty(t, m.Authors)
+	})
+}

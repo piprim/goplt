@@ -54,6 +54,8 @@ type Hooks struct {
 // Manifest holds the parsed content of a goplt.toml file.
 type Manifest struct {
 	Description string // required one-line summary of what this template generates
+	Tags        []string
+	Authors     []string
 	Variables   []Variable
 	// unrendered path prefix → Go template boolean expression
 	Conditions map[string]string
@@ -100,6 +102,8 @@ func NormalizeKey(s string) string {
 // rawManifest is the intermediate representation decoded from goplt.toml.
 type rawManifest struct {
 	Description string              `mapstructure:"description"`
+	Authors     []string            `mapstructure:"authors"`
+	Tags        []string            `mapstructure:"tags"`
 	Variables   map[string]any      `mapstructure:"variables"`
 	Conditions  map[string]string   `mapstructure:"conditions"`
 	Hooks       rawHooks            `mapstructure:"hooks"`
@@ -144,8 +148,20 @@ func LoadManifest(fsys fs.FS) (*Manifest, error) {
 		return nil, errors.New("goplt.toml: missing required field \"description\"")
 	}
 
+	tags := raw.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	authors := raw.Authors
+	if authors == nil {
+		authors = []string{}
+	}
+
 	m := &Manifest{
 		Description: raw.Description,
+		Tags:        tags,
+		Authors:     authors,
 		Conditions:  make(map[string]string, len(raw.Conditions)),
 		Hooks: Hooks{
 			PostGenHooks: PostGenHooks(raw.Hooks.PostGenerate),
