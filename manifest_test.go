@@ -874,6 +874,20 @@ description = "test"
 		assert.NotNil(t, m.Tags)
 		assert.Empty(t, m.Tags)
 	})
+
+	t.Run("explicit_empty_array", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+tags = []
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.NotNil(t, m.Tags)
+		assert.Empty(t, m.Tags)
+	})
 }
 
 func TestLoadManifest_Authors(t *testing.T) {
@@ -894,6 +908,20 @@ authors = ["Alice", "Bob"]
 		fsys := fstest.MapFS{
 			"goplt.toml": &fstest.MapFile{Data: []byte(`
 description = "test"
+`)},
+		}
+
+		m, err := goplt.LoadManifest(fsys)
+		require.NoError(t, err)
+		assert.NotNil(t, m.Authors)
+		assert.Empty(t, m.Authors)
+	})
+
+	t.Run("explicit_empty_array", func(t *testing.T) {
+		fsys := fstest.MapFS{
+			"goplt.toml": &fstest.MapFile{Data: []byte(`
+description = "test"
+authors = []
 `)},
 		}
 

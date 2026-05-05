@@ -54,8 +54,8 @@ type Hooks struct {
 // Manifest holds the parsed content of a goplt.toml file.
 type Manifest struct {
 	Description string // required one-line summary of what this template generates
-	Tags        []string
-	Authors     []string
+	Tags        []string // optional; informational labels for filtering and discovery
+	Authors     []string // optional; human-readable author names or handles
 	Variables   []Variable
 	// unrendered path prefix → Go template boolean expression
 	Conditions map[string]string
@@ -102,8 +102,8 @@ func NormalizeKey(s string) string {
 // rawManifest is the intermediate representation decoded from goplt.toml.
 type rawManifest struct {
 	Description string              `mapstructure:"description"`
-	Authors     []string            `mapstructure:"authors"`
 	Tags        []string            `mapstructure:"tags"`
+	Authors     []string            `mapstructure:"authors"`
 	Variables   map[string]any      `mapstructure:"variables"`
 	Conditions  map[string]string   `mapstructure:"conditions"`
 	Hooks       rawHooks            `mapstructure:"hooks"`
