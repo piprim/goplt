@@ -12,33 +12,54 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/piprim/goplt"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 )
 
+type templateEntry struct {
+	modPath         string
+	versions        []string
+	tags            []string
+	authors         []string
+	metadataVersion string // semver of the version whose manifest was loaded
+}
+
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	var tags []string
+	var author string
+	var orMode bool
+
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List locally cached remote templates",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runList(c.Context())
+			return runList(c.Context(), tags, author, orMode)
 		},
 	}
+
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Filter by tag (repeatable; AND by default)")
+	cmd.Flags().StringVar(&author, "author", "", "Filter by author (case-insensitive substring)")
+	cmd.Flags().BoolVar(&orMode, "or", false, "Match any tag instead of all tags (OR mode)")
+
+	return cmd
 }
 
-func runList(ctx context.Context) error {
+func runList(ctx context.Context, tags []string, author string, orMode bool) error {
 	gomodcache, err := getGoModCache(ctx)
 	if err != nil {
 		return err
 	}
 
-	templates, err := scanForTemplates(gomodcache)
+	entries, err := scanForTemplates(gomodcache)
 	if err != nil {
 		return err
 	}
 
-	printTemplates(templates)
+	entries = filterTemplates(entries, tags, author, orMode)
+
+	printTemplates(entries)
 
 	return nil
 }
@@ -60,19 +81,19 @@ func getGoModCache(ctx context.Context) (string, error) {
 }
 
 // scanForTemplates searches the module cache for valid remote templates.
-func scanForTemplates(gomodcache string) (map[string][]string, error) {
-	entries, err := os.ReadDir(gomodcache)
+func scanForTemplates(gomodcache string) ([]templateEntry, error) {
+	dirEntries, err := os.ReadDir(gomodcache)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil // Safe to return empty; handled by print logic
+			return nil, nil
 		}
 
 		return nil, fmt.Errorf("read GOMODCACHE: %w", err)
 	}
 
-	templates := make(map[string][]string)
+	byPath := make(map[string]*templateEntry)
 
-	for _, entry := range entries {
+	for _, entry := range dirEntries {
 		if !entry.IsDir() || entry.Name() == "cache" {
 			continue
 		}
@@ -84,7 +105,8 @@ func scanForTemplates(gomodcache string) (map[string][]string, error) {
 			}
 
 			if strings.Contains(d.Name(), "@") {
-				extractTemplateData(gomodcache, path, templates)
+				extractTemplateData(gomodcache, path, byPath)
+
 				return fs.SkipDir
 			}
 
@@ -92,14 +114,20 @@ func scanForTemplates(gomodcache string) (map[string][]string, error) {
 		})
 	}
 
-	return templates, nil
+	result := make([]templateEntry, 0, len(byPath))
+	for _, e := range byPath {
+		result = append(result, *e)
+	}
+
+	return result, nil
 }
 
-// extractTemplateData validates the template and appends it to the map.
-func extractTemplateData(gomodcache, path string, templates map[string][]string) {
+// extractTemplateData loads the manifest and registers the version into byPath.
+// Silently skips paths without a valid goplt.toml.
+func extractTemplateData(gomodcache, path string, byPath map[string]*templateEntry) {
 	tomlPath := filepath.Join(path, "goplt.toml")
 	if _, err := os.Stat(tomlPath); err != nil {
-		return // goplt.toml not found, skip
+		return
 	}
 
 	rel, err := filepath.Rel(gomodcache, path)
@@ -115,33 +143,137 @@ func extractTemplateData(gomodcache, path string, templates map[string][]string)
 
 	modPath, unescErr := module.UnescapePath(modPathEscaped)
 	if unescErr != nil {
-		modPath = modPathEscaped // Fallback
+		modPath = modPathEscaped
 	}
 
-	templates[modPath] = append(templates[modPath], version)
-}
+	e, exists := byPath[modPath]
+	isNewer := exists && semver.Compare(version, e.metadataVersion) > 0
 
-// printTemplates sorts and displays the discovered templates.
-func printTemplates(templates map[string][]string) {
-	if len(templates) == 0 {
-		fmt.Println("No remote templates cached locally.")
+	if exists && !isNewer {
+		e.versions = append(e.versions, version)
+
 		return
 	}
 
-	var modPaths []string
-	for p := range templates {
-		modPaths = append(modPaths, p)
+	m, loadErr := goplt.LoadManifest(os.DirFS(path))
+	if loadErr != nil {
+		if exists {
+			e.versions = append(e.versions, version)
+		}
+
+		return
 	}
 
-	slices.Sort(modPaths)
+	if !exists {
+		e = &templateEntry{modPath: modPath}
+		byPath[modPath] = e
+	}
 
-	for _, p := range modPaths {
-		versions := templates[p]
-		semver.Sort(versions)
+	e.tags = m.Tags
+	e.authors = m.Authors
+	e.metadataVersion = version
+	e.versions = append(e.versions, version)
+}
 
-		fmt.Printf("%s@latest\n", p)
-		for i := len(versions) - 2; i >= 0; i-- {
-			fmt.Printf("  %s@%s\n", p, versions[i])
+func filterTemplates(entries []templateEntry, tags []string, author string, orMode bool) []templateEntry {
+	if len(tags) == 0 && author == "" {
+		return entries
+	}
+
+	out := make([]templateEntry, 0, len(entries))
+
+	for _, e := range entries {
+		if !matchesTags(e.tags, tags, orMode) {
+			continue
+		}
+
+		if !matchesAuthor(e.authors, author) {
+			continue
+		}
+
+		out = append(out, e)
+	}
+
+	return out
+}
+
+func matchesTags(have, want []string, orMode bool) bool {
+	if len(want) == 0 {
+		return true
+	}
+
+	if orMode {
+		for _, w := range want {
+			if slices.Contains(have, w) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for _, w := range want {
+		if !slices.Contains(have, w) {
+			return false
 		}
 	}
+
+	return true
+}
+
+func matchesAuthor(authors []string, want string) bool {
+	if want == "" {
+		return true
+	}
+
+	wantLower := strings.ToLower(want)
+
+	for _, a := range authors {
+		if strings.Contains(strings.ToLower(a), wantLower) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// printTemplates sorts and displays the discovered templates with metadata.
+func printTemplates(entries []templateEntry) {
+	if len(entries) == 0 {
+		fmt.Println("No remote templates cached locally.")
+
+		return
+	}
+
+	slices.SortFunc(entries, func(a, b templateEntry) int {
+		return strings.Compare(a.modPath, b.modPath)
+	})
+
+	for _, e := range entries {
+		semver.Sort(e.versions)
+		meta := formatMeta(e.tags, e.authors)
+		fmt.Printf("%s@latest%s\n", e.modPath, meta)
+
+		for i := len(e.versions) - 2; i >= 0; i-- {
+			fmt.Printf("  %s@%s%s\n", e.modPath, e.versions[i], meta)
+		}
+	}
+}
+
+func formatMeta(tags, authors []string) string {
+	var parts []string
+
+	if len(tags) > 0 {
+		parts = append(parts, "["+strings.Join(tags, ", ")+"]")
+	}
+
+	if len(authors) > 0 {
+		parts = append(parts, "("+strings.Join(authors, ", ")+")")
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "  " + strings.Join(parts, "  ")
 }

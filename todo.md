@@ -9,6 +9,8 @@
 - [x] `goplt list` — list locally cached remote templates (from `$GOMODCACHE`)
 - [x] `--no-hooks` flag on `generate` — skip post-generation hooks without editing the manifest
 - [x] `--keep` flag on `test` — retain the generated output dir for debugging instead of cleaning up
+- [ ] Add a command to register a template repository and the option `--remote` to `goplt list` that will update the cache
+      of the registered templates.
 
 ## Variable system
 

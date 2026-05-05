@@ -85,10 +85,15 @@ func runTemplatize(
 		}
 	}
 
-	description, name, orgPrefix, confirmedSubs, err := collectTemplatizeVars(name, orgPrefix, description, skip, yes)
+	tvars, err := collectTemplatizeVars(name, orgPrefix, description, skip, yes)
 	if err != nil {
 		return fmt.Errorf("templatize: collect vars: %w", err)
 	}
+
+	description = tvars.description
+	name = tvars.name
+	orgPrefix = tvars.orgPrefix
+	confirmedSubs := tvars.confirmed
 
 	subs := goplt.BuildSubstitutions(name, orgPrefix, skip)
 
@@ -122,7 +127,7 @@ func runTemplatize(
 // resolveNameAndPrefix fills in name and orgPrefix from the module path in
 // go.mod when either is missing. Returns an error only when go.mod cannot be
 // read and at least one value is still empty after the attempt.
-func resolveNameAndPrefix(sourceDir, name, orgPrefix string) (string, string, error) {
+func resolveNameAndPrefix(sourceDir, name, orgPrefix string) (resolvedName, resolvedOrgPrefix string, err error) {
 	if name != "" && orgPrefix != "" {
 		return name, orgPrefix, nil
 	}
@@ -155,11 +160,18 @@ func resolveNameAndPrefix(sourceDir, name, orgPrefix string) (string, string, er
 	return outName, outOrgPrefix, nil
 }
 
+type collectTemplatizeResult struct {
+	description string
+	name        string
+	orgPrefix   string
+	confirmed   map[string]bool
+}
+
 func collectTemplatizeVars(
 	name, orgPrefix, description string,
 	skip []string,
 	yes bool,
-) (string, string, string, map[string]bool, error) {
+) (collectTemplatizeResult, error) {
 	skipSet := make(map[string]struct{}, len(skip))
 	for _, s := range skip {
 		skipSet[s] = struct{}{}
@@ -224,7 +236,7 @@ func collectTemplatizeVars(
 			Description("\n" + style.Render("Convert project to goplt template"))
 
 		if err := huh.NewForm(group).Run(); err != nil {
-			return "", "", "", nil, fmt.Errorf("templatize: tui form: %w", err)
+			return collectTemplatizeResult{}, fmt.Errorf("templatize: tui form: %w", err)
 		}
 	}
 
@@ -233,7 +245,7 @@ func collectTemplatizeVars(
 		confirmed[e.value] = e.confirmed
 	}
 
-	return description, name, orgPrefix, confirmed, nil
+	return collectTemplatizeResult{description: description, name: name, orgPrefix: orgPrefix, confirmed: confirmed}, nil
 }
 
 func writeTemplateTOML(outputDir, description, name, orgPrefix string) error {

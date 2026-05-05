@@ -53,7 +53,7 @@ type Hooks struct {
 
 // Manifest holds the parsed content of a goplt.toml file.
 type Manifest struct {
-	Description string // required one-line summary of what this template generates
+	Description string   // required one-line summary of what this template generates
 	Tags        []string // optional; informational labels for filtering and discovery
 	Authors     []string // optional; human-readable author names or handles
 	Variables   []Variable

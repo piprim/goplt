@@ -1,4 +1,6 @@
 description = "A Go library with configurable complexity, linting, and toolchain support"
+tags        = ["go", "library"]
+authors     = ["goplt contributors"]
 delimiters  = ["[[", "]]"]
 target-dir  = "[[.Name]]"
 

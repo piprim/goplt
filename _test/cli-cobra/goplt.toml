@@ -1,4 +1,6 @@
 description = "A CLI application scaffolded with Cobra, Viper, and optional Docker support"
+tags        = ["go", "cli", "cobra", "viper"]
+authors     = ["goplt contributors"]
 target-dir  = "{{.Name}}"
 
 [variables.name]

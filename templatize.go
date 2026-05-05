@@ -41,8 +41,8 @@ func ReadModulePath(dir string) (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		if after, ok := strings.CutPrefix(line, "module "); ok {
+			return strings.TrimSpace(after), nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -117,7 +117,7 @@ const (
 // copied verbatim. The .git directory is always skipped.
 // Returns a TemplatizeReport summarising all substitutions and protected strings.
 //
-//nolint:gocognit // flat walk function; helper structs would obscure the logic
+//nolint:gocognit,gocyclo,revive // flat walk function; helper structs would obscure the logic
 func Templatize(fsys fs.FS, outputDir string, subs []Substitution) (*TemplatizeReport, error) {
 	pairs := make([]string, 0, len(subs)*pairsPerSub)
 	for _, s := range subs {

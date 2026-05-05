@@ -22,15 +22,21 @@ var (
 	warnC    = color.New(color.FgYellow, color.Bold)
 )
 
+type generateOpts struct {
+	yes, noHooks, outputExplicit bool
+}
+
 func newGenerateCmd() *cobra.Command {
 	var templateDir, outputDir string
-	var yes, noHooks bool
+	var opts generateOpts
 
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate files from a template directory",
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runGenerate(c.Context(), templateDir, outputDir, yes, noHooks, c.Flags().Changed("output"))
+			opts.outputExplicit = c.Flags().Changed("output")
+
+			return runGenerate(c.Context(), templateDir, outputDir, opts)
 		},
 	}
 
@@ -40,17 +46,14 @@ func newGenerateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(
 		&outputDir, "output", "o", wd, "Output directory for generated files (default: current directory)")
 	cmd.Flags().BoolVarP(
-		&yes, "yes", "y", false, "Skip hook confirmation prompt (for CI / trusted templates)")
+		&opts.yes, "yes", "y", false, "Skip hook confirmation prompt (for CI / trusted templates)")
 	cmd.Flags().BoolVar(
-		&noHooks, "no-hooks", false, "Skip executing post-generation hooks")
+		&opts.noHooks, "no-hooks", false, "Skip executing post-generation hooks")
 
 	return cmd
 }
 
-func runGenerate(
-	ctx context.Context, templateDir, outputDir string,
-	yes, noHooks, outputExplicit bool,
-) error {
+func runGenerate(ctx context.Context, templateDir, outputDir string, opts generateOpts) error {
 	realTemplateDir := templateDir
 
 	if isRemoteRef(templateDir) {
@@ -78,7 +81,7 @@ func runGenerate(
 		return fmt.Errorf("collect vars: %w", err)
 	}
 
-	realOutputDir, err := applyTargetDir(m.TargetDir, outputDir, vars, outputExplicit, m.Delimiters)
+	realOutputDir, err := applyTargetDir(m.TargetDir, outputDir, vars, opts.outputExplicit, m.Delimiters)
 	if err != nil {
 		return fmt.Errorf("apply target-dir: %w", err)
 	}
@@ -88,11 +91,11 @@ func runGenerate(
 		return fmt.Errorf("generate: %w", err)
 	}
 
-	if noHooks {
+	if opts.noHooks {
 		return nil
 	}
 
-	if err := confirmAndRunHooks(ctx, m, realOutputDir, yes); err != nil {
+	if err := confirmAndRunHooks(ctx, m, realOutputDir, opts.yes); err != nil {
 		return err
 	}
 
