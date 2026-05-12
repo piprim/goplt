@@ -57,7 +57,7 @@ func runGenerate(ctx context.Context, templateDir, outputDir string, opts genera
 	realTemplateDir := templateDir
 
 	if isRemoteRef(templateDir) {
-		resolved, err := resolveRemote(ctx, templateDir)
+		resolved, _, err := resolveRemote(ctx, templateDir)
 		if err != nil {
 			return fmt.Errorf("resolve remote template %q: %w", templateDir, err)
 		}

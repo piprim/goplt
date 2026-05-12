@@ -43,6 +43,13 @@ goplt templatize --output ../my-template
 
 # List locally cached remote templates
 goplt list
+
+# Register a template collection so it can be refreshed in bulk
+goplt registry add github.com/piprim/goplt-tmpl
+goplt registry list
+
+# Refresh every registered collection at @latest, then list
+goplt list --remote
 ```
 
 `goplt generate` will open an interactive form, collect all variable values declared in
@@ -70,6 +77,29 @@ goplt generate --template github.com/piprim/goplt-tmpl/cli-cobra@main
 The template module must contain a `goplt.toml` at its root.
 Private modules are supported via the standard Go environment variables
 (`GOPRIVATE`, `GONOSUMDB`, `GOFLAGS`, `GOAUTH`).
+
+### Registered template collections
+
+You can persist a list of template-collection module roots so you don't have to
+remember every path. The registry lives at `$XDG_CONFIG_HOME/goplt/registry.toml`
+on Linux (`~/Library/Application Support/goplt/registry.toml` on macOS,
+`%AppData%\goplt\registry.toml` on Windows).
+
+```bash
+goplt registry add github.com/piprim/goplt-tmpl
+goplt registry remove github.com/piprim/goplt-tmpl
+goplt registry list
+```
+
+A registered entry must be a Go module path that contains every sub-template
+as a subdirectory (one shared `go.mod` at the root). `goplt registry add`
+resolves the module via `go mod download <module>@latest` before persisting it,
+so unreachable or non-existent modules are rejected up front.
+
+`goplt list --remote` runs `go mod download <module>@latest` for every
+registered entry, then prints the discovered templates as usual. Per-entry
+refresh failures are reported as warnings; the command exits non-zero only when
+every entry fails.
 
 ### Official template collection
 

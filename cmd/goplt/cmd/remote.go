@@ -39,11 +39,11 @@ func parseRemoteRef(ref string) (module, version string) {
 }
 
 // resolveRemote fetches the Go module identified by ref using `go mod download
-// -json` and returns the path to its local cache directory. The ref format is
-// "module/path[@version]". Requires `go` in PATH.
-func resolveRemote(ctx context.Context, ref string) (string, error) {
-	module, version := parseRemoteRef(ref)
-	arg := module + "@" + version
+// -json` and returns the path to its local cache directory plus the resolved
+// version string. The ref format is "module/path[@version]". Requires `go` in PATH.
+func resolveRemote(ctx context.Context, ref string) (dir, version string, err error) {
+	module, requested := parseRemoteRef(ref)
+	arg := module + "@" + requested
 
 	tCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -52,29 +52,30 @@ func resolveRemote(ctx context.Context, ref string) (string, error) {
 	debugf("fetching module %s", arg)
 	cmd := exec.CommandContext(tCtx, "go", "mod", "download", "-json", arg)
 	cmd.Stderr = &stderr
-	out, err := cmd.Output()
+	out, runErr := cmd.Output()
 
 	// go mod download writes JSON to stdout even on non-zero exit.
 	// Parse it first to surface the descriptive Error field before falling back.
 	var result struct {
-		Dir   string `json:"Dir"`   //nolint:tagliatelle // Go mod download wants it
-		Error string `json:"Error"` //nolint:tagliatelle // Go mod download wants it
+		Dir     string `json:"Dir"`     //nolint:tagliatelle // Go mod download wants it
+		Version string `json:"Version"` //nolint:tagliatelle // Go mod download wants it
+		Error   string `json:"Error"`   //nolint:tagliatelle // Go mod download wants it
 	}
 	if jsonErr := json.Unmarshal(out, &result); jsonErr == nil && result.Error != "" {
-		return "", fmt.Errorf("module %q: %s", arg, result.Error)
+		return "", "", fmt.Errorf("module %q: %s", arg, result.Error)
 	}
 
-	if err != nil {
+	if runErr != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return "", fmt.Errorf("go mod download %q: %s", arg, msg)
+			return "", "", fmt.Errorf("go mod download %q: %s", arg, msg)
 		}
 
-		return "", fmt.Errorf("go mod download %q: %w", arg, err)
+		return "", "", fmt.Errorf("go mod download %q: %w", arg, runErr)
 	}
 
 	if result.Dir == "" {
-		return "", fmt.Errorf("go mod download %q: empty directory in response", arg)
+		return "", "", fmt.Errorf("go mod download %q: empty directory in response", arg)
 	}
 
-	return result.Dir, nil
+	return result.Dir, result.Version, nil
 }

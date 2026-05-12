@@ -54,7 +54,7 @@ func runTest(ctx context.Context, templateDir, image string, ask, keep bool) err
 	// 2. Resolve remote ref if needed.
 	realTemplateDir := templateDir
 	if isRemoteRef(templateDir) {
-		resolved, err := resolveRemote(ctx, templateDir)
+		resolved, _, err := resolveRemote(ctx, templateDir)
 		if err != nil {
 			return fmt.Errorf("resolve remote template %q: %w", templateDir, err)
 		}

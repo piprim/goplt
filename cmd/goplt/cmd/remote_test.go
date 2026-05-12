@@ -75,9 +75,10 @@ func TestResolveRemote_real(t *testing.T) {
 		t.Skip("skipping network test in short mode")
 	}
 
-	dir, err := resolveRemote(context.Background(), "github.com/piprim/goplt-tmpl/cli-cobra@latest")
+	dir, version, err := resolveRemote(context.Background(), "github.com/piprim/goplt-tmpl/cli-cobra@latest")
 	require.NoError(t, err)
 	assert.NotEmpty(t, dir)
+	assert.NotEmpty(t, version, "resolveRemote must return the resolved version string")
 
 	_, err = os.Stat(filepath.Join(dir, "goplt.toml"))
 	assert.NoError(t, err, "goplt.toml must exist in the resolved module directory")
